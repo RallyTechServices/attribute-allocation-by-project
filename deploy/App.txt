@@ -3,12 +3,12 @@
 <head>
     <title>Attribute Allocation by Project</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Fri Nov 04 2016 14:36:19 GMT-0600 (MDT) -->
+    <!--  Build Date: Fri Nov 04 2016 15:21:56 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri Nov 04 2016 14:36:19 GMT-0600 (MDT)";
+        var APP_BUILD_DATE = "Fri Nov 04 2016 15:21:56 GMT-0600 (MDT)";
         var BUILDER = "kcorkan";
-        var CHECKSUM = 8688803478;
+        var CHECKSUM = 8707508809;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -247,20 +247,21 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
 
         if (!ancestry){
             ancestry = [projectID];
-            do {
-                ancestry.unshift(parent);
-                parent = this.projectHash[parent] &&
-                    this.projectHash[parent].Parent &&
-                    this.projectHash[parent].Parent.ObjectID || null;
+            if (parent){
+                do {
+                    ancestry.unshift(parent);
+                    parent = this.projectHash[parent] &&
+                        this.projectHash[parent].Parent &&
+                        this.projectHash[parent].Parent.ObjectID || null;
 
-            } while (parent);
-
+                } while (parent);
+            }
             this.projectHash[projectID].ancestors = ancestry;
         }
         if (ancestry.length >= projectLevel){
             return ancestry[projectLevel - 1];
         }
-        return -1;
+        return null;
     },
     getProjectName: function(projectID){
         return this.projectHash[projectID] &&  this.projectHash[projectID].Name || "Unknown";

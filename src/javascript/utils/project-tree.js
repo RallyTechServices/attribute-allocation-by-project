@@ -42,20 +42,21 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
 
         if (!ancestry){
             ancestry = [projectID];
-            do {
-                ancestry.unshift(parent);
-                parent = this.projectHash[parent] &&
-                    this.projectHash[parent].Parent &&
-                    this.projectHash[parent].Parent.ObjectID || null;
+            if (parent){
+                do {
+                    ancestry.unshift(parent);
+                    parent = this.projectHash[parent] &&
+                        this.projectHash[parent].Parent &&
+                        this.projectHash[parent].Parent.ObjectID || null;
 
-            } while (parent);
-
+                } while (parent);
+            }
             this.projectHash[projectID].ancestors = ancestry;
         }
         if (ancestry.length >= projectLevel){
             return ancestry[projectLevel - 1];
         }
-        return -1;
+        return null;
     },
     getProjectName: function(projectID){
         return this.projectHash[projectID] &&  this.projectHash[projectID].Name || "Unknown";

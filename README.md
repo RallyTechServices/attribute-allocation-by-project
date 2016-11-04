@@ -1,5 +1,52 @@
 #Attribute Allocation by Project
 
+###Overview
+This app shows the percentage allocation of an artifact attribute across a set of projects for a particular query.  
+
+In this app, the artifacts are bucketed into the project at the configured project level whose hierarchy they are in.  
+
+![ScreenShot](/images/attribute-allocation-by-project.png)
+
+For example given the following project structure (and artifacts in the project structure), 
+
+Level 1 Project
+     |-- Level 2 Project A  Artifact F3 
+        |-- Level 3 Project AA
+            |-- Level 4 Project AAA  Artifact F1  
+     |-- Level 2 Project B
+        |-- Level 3 Project BA  Artifact F2 
+        
+     
+If the app is configured for Project Level = 2, the X-Axis will contain the following project buckets:
+     Level 2 Project A 
+     Level 2 Project B
+     
+     
+The data for each of the buckets will contain the following artifacts:
+     Level 2 Project A:
+        Artifact F3
+        Artifact F1 (becuase the artifact's project is in the hierarchy of Level 2 Project A.  
+     Level 2 Project B:
+        Artifact F2 
+
+The chart can be configured as a Bar chart or a column chart.  A bar chart is recommended if there are more than 8 projects.
+  
+###App Settings:
+  * Project Level - The project level to bucket artifacts into.  
+  * Artifact Type - the objects that represent the data in the chart.
+  * Artifact Field - The field on the artifact type object that represents the attribute.  The values for this field will be the series.  
+  * Show Project Classification - Show the rendered project classification on the chart.  Project classification is a custom field on the Project Object. 
+  * Project Classification field - the field to determine a project's classification 
+  * Chart Type - Column or bar.
+  * Chart Title - The title to be displayed at the top of the chart.  
+  * Query - Query to use to limit the dataset for the artifacts to be evaluated.  
+  
+### Notes
+  If an artifact exists in a project above the configured project level, then that artifact will NOT be included in the dataset or the chart.  
+  Only 4 colors are configured.  If there are more than 4 values, additional colors may need to be added in the chartColors configuration at the top of hte app.js file.      
+      
+     
+
 ## Development Notes
 
 ### First Load
