@@ -12,19 +12,20 @@ For example given the following project structure:
 ![ScreenShot](/images/project-hierarchy.png)
 
 If the app is configured for Project Level = 2, the X-Axis will contain the following project buckets (also seen in the above screenshot):
-     * Architecture
-     * Consumer Program / ART
-     * Reseller Program / ART
-     * Rally Essentials
-     * Rally Tools 
+######Architecture
+######Consumer Program / ART
+######Reseller Program / ART
+######Rally Essentials
+######Rally Tools 
      
 #####Take the following features and their respective projects:
-Feature 1 (Agile Team 1)
-Feature 2 (Agile Team 2)
-Feature 3 (Consumer Program / ART)
-Feature 4 (Architecture Team)
-Feature 5 (Rally Essentials)
-Feature 6 (Online Store, Inc)
+
+* ######Feature 1 (Agile Team 1)
+* ######Feature 2 (Agile Team 2)
+* ######Feature 3 (Consumer Program / ART)
+* ######Feature 4 (Architecture Team)
+* ######Feature 5 (Rally Essentials)
+* ######Feature 6 (Online Store, Inc)
 
 #####The features will be bucketed as follows:
 
@@ -43,28 +44,28 @@ Feature 6 (Online Store, Inc)
  
   
 ###App Settings:
-  ######Project Level
+######Project Level
   The project level to bucket artifacts into.  
   
-  ######Artifact Type
+######Artifact Type
   the objects that represent the data in the chart.
   
-  ######Artifact Field
+######Artifact Field
   The field on the artifact type object that represents the attribute.  The values for this field will be the series.  
   
-  ######Show Project Classification
+######Show Project Classification
   Show the rendered project classification on the chart.  Project classification is a custom field on the Project Object. 
   
-  ######Project Classification field
+######Project Classification field
   The field to determine a project's classification 
   
-  ######Chart Type
+######Chart Type
   The chart can be configured as a Bar chart or a column chart.  A bar chart is recommended if there are more than 8 projects.
   
-  ######Chart Title
+######Chart Title
   The title to be displayed at the top of the chart.  
   
-  ######Query
+######Query
   Query to use to limit the dataset for the artifacts to be evaluated.  
   
 ### Notes
