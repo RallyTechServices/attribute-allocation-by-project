@@ -12,32 +12,34 @@ For example given the following project structure:
 ![ScreenShot](/images/project-hierarchy.png)
 
 If the app is configured for Project Level = 2, the X-Axis will contain the following project buckets (also seen in the above screenshot):
-######Architecture
-######Consumer Program / ART
-######Reseller Program / ART
-######Rally Essentials
-######Rally Tools 
+#####Architecture
+#####Consumer Program / ART
+#####Reseller Program / ART
+#####Rally Essentials
+#####Rally Tools 
+
+*Note that these are projects that are second from the top of the hierarchy*      
      
 #####Take the following features and their respective projects:
 
-* ######Feature 1 (Agile Team 1)
-* ######Feature 2 (Agile Team 2)
-* ######Feature 3 (Consumer Program / ART)
-* ######Feature 4 (Architecture Team)
-* ######Feature 5 (Rally Essentials)
-* ######Feature 6 (Online Store, Inc)
+* Feature 1 (Agile Team 1)
+* Feature 2 (Agile Team 2)
+* Feature 3 (Consumer Program / ART)
+* Feature 4 (Architecture Team)
+* Feature 5 (Rally Essentials)
+* Feature 6 (Online Store, Inc)
 
 #####The features will be bucketed as follows:
 
-######Architecture
+#####Architecture
  * Feature 4 
  
-######Consumer Program / ART
+#####Consumer Program / ART
  * Feature 1
  * Feature 2
  * Feature 3 
 
-######Rally Tool Training 
+#####Rally Tool Training 
  * Feature 5 
 
 *Feature 6 will not be included in the chart data becuase it resides in a project that is a Project Level 1 project and the chart is only showing features bucketed by Project Level 2*  
