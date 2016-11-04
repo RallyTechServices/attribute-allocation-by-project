@@ -3,10 +3,10 @@
 <head>
     <title>Attribute Allocation by Project</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Fri Nov 04 2016 15:21:57 GMT-0600 (MDT) -->
+    <!--  Build Date: Fri Nov 04 2016 15:38:57 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri Nov 04 2016 15:21:57 GMT-0600 (MDT)";
+        var APP_BUILD_DATE = "Fri Nov 04 2016 15:38:57 GMT-0600 (MDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
