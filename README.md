@@ -7,45 +7,71 @@ In this app, the artifacts are bucketed into the project at the configured proje
 
 ![ScreenShot](/images/attribute-allocation-by-project.png)
 
-For example given the following project structure (and artifacts in the project structure), 
+For example given the following project structure:
 
-Level 1 Project
-     |-- Level 2 Project A  Artifact F3 
-        |-- Level 3 Project AA
-            |-- Level 4 Project AAA  Artifact F1  
-     |-- Level 2 Project B
-        |-- Level 3 Project BA  Artifact F2 
-        
-     
-If the app is configured for Project Level = 2, the X-Axis will contain the following project buckets:
-     Level 2 Project A 
-     Level 2 Project B
-     
-     
-The data for each of the buckets will contain the following artifacts:
-     Level 2 Project A:
-        Artifact F3
-        Artifact F1 (becuase the artifact's project is in the hierarchy of Level 2 Project A.  
-     Level 2 Project B:
-        Artifact F2 
+![ScreenShot](/images/project-hierarchy.png)
 
-The chart can be configured as a Bar chart or a column chart.  A bar chart is recommended if there are more than 8 projects.
+If the app is configured for Project Level = 2, the X-Axis will contain the following project buckets (also seen in the above screenshot):
+     * Architecture
+     * Consumer Program / ART
+     * Reseller Program / ART
+     * Rally Essentials
+     * Rally Tools 
+     
+#####Take the following features and their respective projects:
+Feature 1 (Agile Team 1)
+Feature 2 (Agile Team 2)
+Feature 3 (Consumer Program / ART)
+Feature 4 (Architecture Team)
+Feature 5 (Rally Essentials)
+Feature 6 (Online Store, Inc)
+
+#####The features will be bucketed as follows:
+
+######Architecture
+ * Feature 4 
+ 
+######Consumer Program / ART
+ * Feature 1
+ * Feature 2
+ * Feature 3 
+
+######Rally Tool Training 
+ * Feature 5 
+
+*Feature 6 will not be included in the chart data becuase it resides in a project that is a Project Level 1 project and the chart is only showing features bucketed by Project Level 2*  
+ 
   
 ###App Settings:
-  * Project Level - The project level to bucket artifacts into.  
-  * Artifact Type - the objects that represent the data in the chart.
-  * Artifact Field - The field on the artifact type object that represents the attribute.  The values for this field will be the series.  
-  * Show Project Classification - Show the rendered project classification on the chart.  Project classification is a custom field on the Project Object. 
-  * Project Classification field - the field to determine a project's classification 
-  * Chart Type - Column or bar.
-  * Chart Title - The title to be displayed at the top of the chart.  
-  * Query - Query to use to limit the dataset for the artifacts to be evaluated.  
+  ######Project Level
+  The project level to bucket artifacts into.  
+  
+  ######Artifact Type
+  the objects that represent the data in the chart.
+  
+  ######Artifact Field
+  The field on the artifact type object that represents the attribute.  The values for this field will be the series.  
+  
+  ######Show Project Classification
+  Show the rendered project classification on the chart.  Project classification is a custom field on the Project Object. 
+  
+  ######Project Classification field
+  The field to determine a project's classification 
+  
+  ######Chart Type
+  The chart can be configured as a Bar chart or a column chart.  A bar chart is recommended if there are more than 8 projects.
+  
+  ######Chart Title
+  The title to be displayed at the top of the chart.  
+  
+  ######Query
+  Query to use to limit the dataset for the artifacts to be evaluated.  
   
 ### Notes
   If an artifact exists in a project above the configured project level, then that artifact will NOT be included in the dataset or the chart.  
   Only 4 colors are configured.  If there are more than 4 values, additional colors may need to be added in the chartColors configuration at the top of hte app.js file.      
       
-     
+      
 
 ## Development Notes
 
