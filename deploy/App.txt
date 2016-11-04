@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attribute Allocation by Project</title>
+    <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
+    <!--  Build Date: Fri Nov 04 2016 14:36:19 GMT-0600 (MDT) -->
+    
+    <script type="text/javascript">
+        var APP_BUILD_DATE = "Fri Nov 04 2016 14:36:19 GMT-0600 (MDT)";
+        var BUILDER = "kcorkan";
+        var CHECKSUM = 8688803478;
+    </script>
+    
+    <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function() {
+             
+/**
+ * A link that pops up a version dialog box
+ */
+
+Ext.define('Rally.technicalservices.InfoLink',{
+    extend: 'Rally.ui.dialog.Dialog',
+    alias: 'widget.tsinfolink',
+    
+    /**
+     * @cfg {String} informationHtml
+     * Additional text to be displayed on the popup dialog (for exmaple,
+     * to add a description of the app's use or functionality)
+     */
+    informationHtml: null,
+    
+    /**
+     * 
+     * cfg {String} title
+     * The title for the dialog box
+     */
+    title: "Build Information",
+    
+    defaults: { padding: 5, margin: 5 },
+
+    closable: true,
+     
+    draggable: true,
+
+    autoShow: true,
+   
+    width: 350,
+    
+    informationalConfig: null,
+    
+    items: [{xtype:'container', itemId:'information' }],
+    
+    initComponent: function() {
+        var id = Ext.id(this);
+        this.title =  "<span class='icon-help'> </span>" + this.title;
+        this.callParent(arguments);
+    },
+    
+    _generateChecksum: function(string){
+        var chk = 0x12345678,
+            i;
+        string = string.replace(/var CHECKSUM = .*;/,"");
+        string = string.replace(/var BUILDER = .*;/,"");
+        string = string.replace(/\s/g,"");  //Remove all whitespace from the string.
+       
+        for (i = 0; i < string.length; i++) {
+            chk += (string.charCodeAt(i) * i);
+        }
+   
+        return chk;
+    },
+    
+    _checkChecksum: function(container) {
+        var deferred = Ext.create('Deft.Deferred');
+        var me = this;
+        
+        Ext.Ajax.request({
+            url: document.URL,
+            params: {
+                id: 1
+            },
+            success: function (response) {
+                text = response.responseText;
+                if ( CHECKSUM ) {
+                    var stored_checksum = me._generateChecksum(text);
+                    if ( CHECKSUM !== stored_checksum ) {
+                        deferred.resolve(false);
+                        return;
+                    }
+                }
+                deferred.resolve(true);
+            }
+        });
+        
+        return deferred.promise;
+    },
+    
+    _addToContainer: function(container){
+        var config = Ext.apply({
+            xtype:'container',
+            height: 200,
+            overflowY: true
+        }, this.informationalConfig);
+        
+        container.add(config);
+    },
+    
+    afterRender: function() {
+        var app = Rally.getApp();
+        
+        if ( !Ext.isEmpty( this.informationalConfig ) ) {
+            var container = this.down('#information');
+            this._addToContainer(container);
+            
+        }
+        
+        if (! app.isExternal() ) {
+            this._checkChecksum(app).then({
+                scope: this,
+                success: function(result){
+                    if ( !result ) {
+                        this.addDocked({
+                            xtype:'container',
+                            cls: 'build-info',
+                            dock: 'bottom',
+                            padding: 2,
+                            html:'<span class="icon-warning"> </span>Checksums do not match'
+                        });
+                    }
+                },
+                failure: function(msg){
+                    console.log("oops:",msg);
+                }
+            });
+        } else {
+            this.addDocked({
+                xtype:'container',
+                cls: 'build-info',
+                padding: 2,
+                dock: 'bottom',
+                html:'... Running externally'
+            });
+        }
+        this.callParent(arguments);
+    },
+    
+    beforeRender: function() {
+        var me = this;
+        this.callParent(arguments);
+
+        if (this.informationHtml) {
+            this.addDocked({
+                xtype: 'component',
+                componentCls: 'intro-panel',
+                padding: 2,
+                html: this.informationHtml,
+                doc: 'top'
+            });
+        }
+        
+        this.addDocked({
+            xtype:'container',
+            cls: 'build-info',
+            padding: 2,
+            dock:'bottom',
+            html:"This app was created by the CA AC Technical Services Team."
+        });
+        
+        if ( APP_BUILD_DATE ) {
+            this.addDocked({
+                xtype:'container',
+                cls: 'build-info',
+                padding: 2,
+                dock: 'bottom',
+                html: Ext.String.format("Build date/time: {0} ({1})",
+                    APP_BUILD_DATE,
+                    BUILDER)
+            });
+        }
+    }
+});
+
+/*
+ */
+Ext.define('Rally.technicalservices.Logger',{
+    constructor: function(config){
+        Ext.apply(this,config);
+    },
+    log: function(args){
+        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
+        //var output_args = arguments;
+        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
+        //output_args = Ext.Array.push(output_args,arguments);
+        
+        var output_args = [];
+        output_args = Ext.Array.push(output_args,[timestamp]);
+        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
+
+        window.console && console.log.apply(console,output_args);
+    }
+
+});
+
+Ext.define('CA.technicalservices.utils.ProjectUtilities',{
+
+    fetch: ['ObjectID','Name','Parent'],
+    mixins: {
+        observable: 'Ext.util.Observable'
+    },
+    constructor: function(config){
+        this.mixins.observable.constructor.call(this, config);
+
+        var fetch = Ext.Array.merge(this.fetch, config && config.fetch || []);
+        this.projectParentHash = {};
+        console.log('fetch', fetch);
+        Ext.create('Rally.data.wsapi.Store',{
+            model: 'Project',
+            fetch: ['ObjectID','Name','Parent'],
+            limit: Infinity,
+            context: {project: null},
+            compact: false
+        }).load({
+            callback: function(records, operation){
+                if (operation.wasSuccessful()){
+                    this._buildProjectParentHash(records);
+                } else {
+                    this.fireEvent('onerror', "Error fetching projects: " + operation.error && operation.error.errors.join(','));
+                }
+            },
+            scope: this
+        });
+    },
+    _buildProjectParentHash: function(records){
+
+        var projectHash = {};
+        Ext.Array.each(records, function(r){
+            projectHash[r.get('ObjectID')] = r.getData();
+        });
+        this.projectHash= projectHash;
+        this.fireEvent('ready');
+    },
+    getProjectAncestor: function(projectID, projectLevel){
+        var parent = this.projectHash[projectID].Parent && this.projectHash[projectID].Parent.ObjectID || null,
+            ancestry = this.projectHash[projectID] && this.projectHash[projectID].ancestors;
+
+        if (!ancestry){
+            ancestry = [projectID];
+            do {
+                ancestry.unshift(parent);
+                parent = this.projectHash[parent] &&
+                    this.projectHash[parent].Parent &&
+                    this.projectHash[parent].Parent.ObjectID || null;
+
+            } while (parent);
+
+            this.projectHash[projectID].ancestors = ancestry;
+        }
+        if (ancestry.length >= projectLevel){
+            return ancestry[projectLevel - 1];
+        }
+        return -1;
+    },
+    getProjectName: function(projectID){
+        return this.projectHash[projectID] &&  this.projectHash[projectID].Name || "Unknown";
+    }
+});
+Ext.define("attribute-allocation-by-project", {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    logger: new Rally.technicalservices.Logger(),
+    defaults: { margin: 10 },
+
+    integrationHeaders : {
+        name : "techservices.attribute-allocation-by-project"
+    },
+
+    config: {
+        defaultSettings: {
+            projectLevel: 2,
+            attributeField: 'InvestmentCategory',
+            artifactType: 'PortfolioItem/Feature',
+            projectClassificationField: null,
+            showProjectClassifications: false,
+            chartType: 'column',  //'bar' is other choice,
+            query: '', //filters the results - for example if I just want to see items in a few particular states.,
+            chartTitle: 'Chart Title'
+        }
+    },
+
+    chartColors: ['#FF671B','#F38B00','#FFC81F','#8DB92E'],
+    artifactFetch: ['Project','ObjectID'],
+
+    launch: function() {
+        this.logger.log('launch', this._validateAppSettings());
+        if (!this._validateAppSettings()){
+           this.showAppMessage('Please configure an Artifact Type and Attribute Field setting.');
+           return;
+        }
+        this._initializeApp();
+    },
+    _validateAppSettings: function(){
+        this.logger.log('_validateAppSettings', this.getAttributeField(), this.getArtifactType());
+        return this.getAttributeField() && this.getAttributeField().length > 0 &&
+                this.getArtifactType() && this.getArtifactType().length > 0;
+    },
+    _initializeApp: function(){
+        this.removeAll();
+        this.logger.log('_initializeApp');
+        this.projectUtility = Ext.create('CA.technicalservices.utils.ProjectUtilities',{
+            fetch: [this.getProjectClassificationField()],
+            listeners: {
+                onerror: this.showErrorNotification,
+                ready: this.fetchArtifacts,
+                scope: this
+            }
+        });
+    },
+    fetchArtifacts: function(){
+        this.logger.log('fetchArtifacts', this.projectUtility);
+        this.setLoading(true);
+        Ext.create('Rally.data.wsapi.Store',{
+            model: this.getArtifactType(),
+            fetch: this.getArtifactFetch(),
+            filters: this.getArtifactFilters(),
+            limit: Infinity,
+            context: {project: null}
+        }).load({
+            callback: function(records, operation){
+                this.setLoading(false);
+                if (operation.wasSuccessful()){
+                    this.buildChart(records);
+                } else {
+                    var msg = Ext.String.format("Error fetching {0} artifacts:  {1}",this.getArtifactType(),operation && operation.error && operation.error.errors.join(','));
+                    this.showErrorNotification(msg);
+                }
+            },
+            scope: this
+        });
+    },
+    buildChart: function(records){
+        this.logger.log('buildRecords', records);
+
+        if (records.length === 0){
+            this.showAppMessage("No records found for the selected criteria.");
+            return;
+        }
+
+        var field = this.getAttributeField();
+        var hash = {},
+            valueKeys = [],
+            projectKeys = [];
+
+        for (var i=0; i<records.length; i++){
+            var rec = records[i].getData();
+
+            var val = rec[field],
+                project= this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
+            this.logger.log('buildChart record', rec, project);
+            if (project){
+                if (!Ext.Array.contains(valueKeys, val)){
+                    valueKeys.push(val);
+                }
+                if (!Ext.Array.contains(projectKeys, project)){
+                    projectKeys.push(project);
+                }
+
+                if (!hash[val]){
+                    hash[val] = {};
+                }
+                if (!hash[val][project]){
+                    hash[val][project] = 0;
+                }
+                hash[val][project]++;
+            }
+        }
+
+        this.logger.log('_buildChart projectKeys, valueKeys', projectKeys, valueKeys);
+        var categories = Ext.Array.map(projectKeys, function(p){ return this.projectUtility.getProjectName(p); }, this),
+            series = [];
+
+        Ext.Object.each(hash, function(val, projectObj){
+            var data = [];
+            Ext.Array.each(projectKeys, function(p){
+                data.push(hash[val][p] || 0)
+            });
+            series.push({
+                name: val,
+                data: data
+            });
+        });
+
+        this.logger.log('_buildChart', categories, series);
+        this.add({
+            xtype: 'rallychart',
+            chartColors: this.chartColors,
+            chartData: {
+                series: series,
+                categories: categories
+            },
+            chartConfig: {
+                chart: {
+                    type: this.getChartType()
+                },
+                title: {
+                    text: this.getChartTitle(),
+                    style: {
+                        color: '#666',
+                        fontSize: '18px',
+                        fontFamily: 'ProximaNova',
+                        fill: '#666'
+                    }
+                },
+                xAxis: {
+                    categories: categories,
+                    labels: {
+                        style: {
+                            color: '#444',
+                            fontFamily:'ProximaNova',
+                            textTransform: 'uppercase',
+                            fill:'#444'
+                        }
+                    }
+                },
+                yAxis: {
+                    min: 0,
+                    labels: {
+                        format: "{value}%",
+                        style: {
+                            color: '#444',
+                            fontFamily:'ProximaNova',
+                            textTransform: 'uppercase',
+                            fill:'#444'
+                        }
+                    },
+                    title: {
+                        text: null
+                    }
+
+                },
+                tooltip: {
+                    pointFormat: '<span style="font-family:ProximaNova;color:{series.color}">{series.name}</span>: <span style="font-family:ProximaNova;color:white;">{point.y} ({point.percentage:.0f}%)</span><br/>',
+                    backgroundColor: '#444',
+                    headerFormat: '<span style="display:block;margin:0;padding:0 0 2px 0;text-align:center"><b style="font-family:NotoSansBold;color:white;">{point.key}</b></span><table><tbody>',
+                    footerFormat: '</tbody></table>',
+                    shared: true,
+                    useHTML: true,
+                    borderColor: '#444'
+                },
+                legend: {
+                    itemStyle: {
+                        color: '#444',
+                        fontFamily:'ProximaNova',
+                        textTransform: 'uppercase'
+                    },
+                    borderWidth: 0
+                },
+                plotOptions: {
+                    series: {
+                        stacking: 'percent'
+                    }
+                }
+            }
+        });
+    },
+    showAppMessage: function(msg){
+        this.removeAll();
+        var ct = this.add({
+            xtype: 'container',
+            tpl: '<div class="no-data-container"><div class="secondary-message">{message}</div></div>'
+        });
+        ct.update({message: msg});
+    },
+    showErrorNotification: function(msg){
+        this.logger.log('showErrorNotification', msg);
+        Rally.ui.notify.Notifier.showError({message: msg});
+    },
+    getProjectClassificationField: function(){
+        return this.getSetting('projectClassificationField');
+    },
+    getChartType: function(){
+        return this.getSetting('chartType');
+    },
+    getChartTitle: function(){
+        return this.getSetting('chartTitle');
+    },
+    getAttributeField: function(){
+        return this.getSetting('attributeField');
+    },
+    getArtifactType: function(){
+        return this.getSetting('artifactType');
+    },
+    getArtifactFetch: function(){
+        return Ext.Array.merge(this.artifactFetch, [this.getAttributeField()]);
+    },
+    getArtifactFilters: function(){
+        return [];
+    },
+    getProjectLevel: function(){
+        return this.getSetting('projectLevel') || 1;
+    },
+    getSettingsFields: function(){
+        var labelWidth = 200,
+            showProjectClassification = this.getSetting('showProjectClassification') || false,
+            chartType = this.getChartType();
+
+        return [{
+            xtype: 'rallynumberfield',
+            name: 'projectLevel',
+            minValue: 1,
+            maxValue: 9,
+            fieldLabel: 'Project Level',
+            labelAlign: 'right',
+            labelWidth: labelWidth
+        },{
+            xtype: 'rallycombobox',
+            name: 'artifactType',
+            storeConfig: {
+                model: 'TypeDefinition',
+                filters: [{
+                    property: 'TypePath',
+                    operator: 'contains',
+                    value: 'PortfolioItem/'
+                }]
+            },
+            fieldLabel: 'Artifact Type',
+            labelAlign: 'right',
+            labelWidth: labelWidth,
+            valueField: 'TypePath',
+            bubbleEvents: ['select','ready']
+        },{
+            xtype: 'rallyfieldcombobox',
+            name: 'attributeField',
+            model: 'PortfolioItem/Feature',
+            fieldLabel: 'Attribute Type',
+            labelAlign: 'right',
+            labelWidth: labelWidth,
+            handlesEvents: {
+                ready: function(cb){
+                    if (cb.getValue()){
+                        this.refreshWithNewModelType(cb.getValue());
+                    }
+                },
+                select: function(cb){
+                    if (cb.getValue()){
+                        this.refreshWithNewModelType(cb.getValue());
+                    }
+                }
+            }
+        },{
+            xtype: 'rallycheckboxfield',
+            name: 'showProjectClassification',
+            bubbleEvents: ['change'],
+            fieldLabel: 'Show Project Classifications',
+            labelAlign: 'right',
+            labelWidth: labelWidth,
+            value: showProjectClassification
+
+        },{
+            xtype: 'rallyfieldcombobox',
+            name: 'projectClassificationField',
+            model: 'Project',
+            fieldLabel: 'Project Classification Field',
+            labelAlign: 'right',
+            labelWidth: labelWidth,
+            disabled: showProjectClassification !== true,
+            handlesEvents: {
+                change: function(chk, newValue) {
+                    this.setDisabled(newValue !== true);
+                }
+            }
+        },{
+            xtype: 'radiogroup',
+            fieldLabel: 'Chart Type',
+            labelAlign: 'right',
+            labelWidth: labelWidth,
+            // Arrange radio buttons into two columns, distributed vertically
+            columns: 6,
+            vertical: true,
+            items: [
+                { boxLabel: 'Column', name: 'chartType', inputValue: 'column', checked: chartType === 'column'},
+                { boxLabel: 'Bar', name: 'chartType', inputValue: 'bar', checked: chartType === 'bar' }
+            ]
+        },{
+            xtype: 'rallytextfield',
+            name: 'chartTitle',
+            fieldLabel: 'Chart Title',
+            labelAlign: 'right',
+            labelWidth: labelWidth,
+            emptyText: 'Enter a Chart Title...',
+            maxLength: 255,
+            anchor: '100%',
+            margin: '0 70 0 0'
+        },{
+            xtype: 'textarea',
+            fieldLabel: 'Query Filter',
+            name: 'query',
+            anchor: '100%',
+            cls: 'query-field',
+            margin: '10 70 0 0',
+            labelAlign: 'right',
+            labelWidth: labelWidth,
+            plugins: [
+                {
+                    ptype: 'rallyhelpfield',
+                    helpId: 194
+                },
+                'rallyfieldvalidationui'
+            ],
+            validateOnBlur: false,
+            validateOnChange: false,
+            validator: function(value) {
+                try {
+                    if (value) {
+                        Rally.data.wsapi.Filter.fromQueryString(value);
+                    }
+                    return true;
+                } catch (e) {
+                    return e.message;
+                }
+            }
+        }];
+    },
+    getOptions: function() {
+        return [
+            {
+                text: 'About...',
+                handler: this._launchInfo,
+                scope: this
+            }
+        ];
+    },
+    
+    _launchInfo: function() {
+        if ( this.about_dialog ) { this.about_dialog.destroy(); }
+        this.about_dialog = Ext.create('Rally.technicalservices.InfoLink',{});
+    },
+    
+    isExternal: function(){
+        return typeof(this.getAppId()) == 'undefined';
+    },
+    
+    //onSettingsUpdate:  Override
+    onSettingsUpdate: function (settings){
+        this.logger.log('onSettingsUpdate',settings);
+        // Ext.apply(this, settings);
+        this.launch();
+    }
+});
+
+            
+               Rally.launchApp('attribute-allocation-by-project', {
+                   name: 'Attribute Allocation by Project'
+               });
+        });
+    </script>
+    
+    <style type="text/css">
+
+.app {
+}
+.tsinfolink {
+    position:absolute;
+    right:0px;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    text-align: center;
+    color: white;
+    background: #C0C0C0;
+    border-style: solid;
+    border-width: 1px;
+    margin-top: 25px;
+    margin-right: 5px;
+    cursor: pointer;
+}
+    </style>
+
+</head>
+<body></body>
+</html>
