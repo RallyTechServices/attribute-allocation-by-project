@@ -7,12 +7,15 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
     constructor: function(config){
         this.mixins.observable.constructor.call(this, config);
 
-        var fetch = Ext.Array.merge(this.fetch, config && config.fetch || []);
-        this.projectParentHash = {};
-        console.log('fetch', fetch);
+        var fetch = ['ObjectID','Name','Parent']
+        if (config.fetch){
+            fetch = Ext.Array.merge(fetch, config && config.fetch || []);
+        }
+        this.currentProject = config.currentProject;
+
         Ext.create('Rally.data.wsapi.Store',{
             model: 'Project',
-            fetch: ['ObjectID','Name','Parent'],
+            fetch: fetch,
             limit: Infinity,
             context: {project: null},
             compact: false
@@ -36,7 +39,31 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
         this.projectHash= projectHash;
         this.fireEvent('ready');
     },
-    getProjectAncestor: function(projectID, projectLevel){
+    //getProjectAncestor: function(projectID, relativeProjectLevel){
+    //    var actualProjectLevel =
+    //
+    //    var parent = this.projectHash[projectID].Parent && this.projectHash[projectID].Parent.ObjectID || null,
+    //        ancestry = this.projectHash[projectID] && this.projectHash[projectID].ancestors;
+    //
+    //    if (!ancestry){
+    //        ancestry = [projectID];
+    //        if (parent){
+    //            do {
+    //                ancestry.unshift(parent);
+    //                parent = this.projectHash[parent] &&
+    //                    this.projectHash[parent].Parent &&
+    //                    this.projectHash[parent].Parent.ObjectID || null;
+    //
+    //            } while (parent);
+    //        }
+    //        this.projectHash[projectID].ancestors = ancestry;
+    //    }
+    //    if (ancestry.length >= projectLevel){
+    //        return ancestry[projectLevel - 1];
+    //    }
+    //    return null;
+    //},
+    getAncestry: function(projectID){
         var parent = this.projectHash[projectID].Parent && this.projectHash[projectID].Parent.ObjectID || null,
             ancestry = this.projectHash[projectID] && this.projectHash[projectID].ancestors;
 
@@ -53,12 +80,28 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
             }
             this.projectHash[projectID].ancestors = ancestry;
         }
-        if (ancestry.length >= projectLevel){
-            return ancestry[projectLevel - 1];
+        return ancestry;
+    },
+    getCurrentProjectLevel: function(){
+        if (!this.currentProjectLevel){
+            this.currentProjectLevel = this.getProjectLevel(this.currentProject);
+        }
+        return this.currentProjectLevel;
+    },
+    getProjectAncestor: function(projectID, relativeProjectLevel){
+        var absoluteProjectLevel = this.getCurrentProjectLevel() + relativeProjectLevel;
+        var ancestry = this.getAncestry(projectID);
+
+        if (ancestry.length >= absoluteProjectLevel){
+            return ancestry[absoluteProjectLevel - 1];
         }
         return null;
     },
     getProjectName: function(projectID){
         return this.projectHash[projectID] &&  this.projectHash[projectID].Name || "Unknown";
+    },
+    getProjectLevel: function(projectID){
+        var ancestory = this.getAncestry(projectID);
+        return ancestory.length;
     }
 });
