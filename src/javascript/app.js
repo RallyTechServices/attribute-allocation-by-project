@@ -17,12 +17,13 @@ Ext.define("attribute-allocation-by-project", {
             showProjectClassifications: false,
             chartType: 'column',  //'bar' is other choice,
             query: '', //filters the results - for example if I just want to see items in a few particular states.,
-            chartTitle: 'Chart Title'
+            chartTitle: 'Chart Title',
+            sumField: null  //or storyCount or storyPoints or featurePreliminaryEstimate
         }
     },
 
     chartColors: ['#FF671B','#F38B00','#FFC81F','#8DB92E'],
-    artifactFetch: ['Project','ObjectID'],
+    artifactFetch: ['Project','ObjectID','Parent'],  //we need to get the parent so that we can also fetch the attribute field value of the parent.
 
     launch: function() {
         this.logger.log('launch', this._validateAppSettings());
@@ -42,6 +43,7 @@ Ext.define("attribute-allocation-by-project", {
         this.logger.log('_initializeApp');
         this.projectUtility = Ext.create('CA.technicalservices.utils.ProjectUtilities',{
             fetch: [this.getProjectClassificationField()],
+            currentProject: this.getContext().getProject().ObjectID,
             listeners: {
                 onerror: this.showErrorNotification,
                 ready: this.fetchArtifacts,
@@ -50,14 +52,16 @@ Ext.define("attribute-allocation-by-project", {
         });
     },
     fetchArtifacts: function(){
-        this.logger.log('fetchArtifacts', this.projectUtility);
+        this.logger.log('fetchArtifacts', this.projectUtility, this.getArtifactFilters().toString(),this.getArtifactType(),this.getArtifactFetch());
         this.setLoading(true);
         Ext.create('Rally.data.wsapi.Store',{
             model: this.getArtifactType(),
             fetch: this.getArtifactFetch(),
             filters: this.getArtifactFilters(),
             limit: Infinity,
-            context: {project: null}
+            pageSize: 2000,
+            compact: false
+           // context: {project: null}
         }).load({
             callback: function(records, operation){
                 this.setLoading(false);
@@ -79,7 +83,8 @@ Ext.define("attribute-allocation-by-project", {
             return;
         }
 
-        var field = this.getAttributeField();
+        var field = this.getAttributeField(),
+            sumField = this.getSumField();
         var hash = {},
             valueKeys = [],
             projectKeys = [];
@@ -87,9 +92,12 @@ Ext.define("attribute-allocation-by-project", {
         for (var i=0; i<records.length; i++){
             var rec = records[i].getData();
 
-            var val = rec[field],
-                project= this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
-            this.logger.log('buildChart record', rec, project);
+            var val = rec[field];
+            if (!val || val === "None"){
+                val = rec.Parent && rec.Parent[field] || "None";
+               // this.logger.log('using parent value: ', val);
+            }
+            var project= this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
             if (project){
                 if (!Ext.Array.contains(valueKeys, val)){
                     valueKeys.push(val);
@@ -104,7 +112,14 @@ Ext.define("attribute-allocation-by-project", {
                 if (!hash[val][project]){
                     hash[val][project] = 0;
                 }
-                hash[val][project]++;
+
+                if (sumField){
+                    hash[val][project] += rec[sumField] || 0;
+                } else {
+                    hash[val][project]++;
+                }
+
+
             }
         }
 
@@ -223,11 +238,25 @@ Ext.define("attribute-allocation-by-project", {
     getArtifactType: function(){
         return this.getSetting('artifactType');
     },
+    getSumField: function(){
+        if (this.getSetting('sumField') && this.getSetting('sumField') === "PreliminaryEstimate"){
+            return 'PreliminaryEstimateValue';
+        }
+        return this.getSetting('sumField') || null;
+    },
     getArtifactFetch: function(){
-        return Ext.Array.merge(this.artifactFetch, [this.getAttributeField()]);
+        var fetch = Ext.Array.merge(this.artifactFetch, [this.getAttributeField()]);
+        if (this.getSumField()){
+            fetch.push(this.getSumField());
+        }
+        return fetch;
     },
     getArtifactFilters: function(){
-        return [];
+        var queryFilter = [];
+        if (this.getSetting('query')){
+            queryFilter = Rally.data.wsapi.Filter.fromQueryString(this.getSetting('query'));
+        }
+        return queryFilter;
     },
     getProjectLevel: function(){
         return this.getSetting('projectLevel') || 1;
@@ -242,7 +271,7 @@ Ext.define("attribute-allocation-by-project", {
             name: 'projectLevel',
             minValue: 1,
             maxValue: 9,
-            fieldLabel: 'Project Level',
+            fieldLabel: 'Relative Project Level',
             labelAlign: 'right',
             labelWidth: labelWidth
         },{
@@ -254,7 +283,8 @@ Ext.define("attribute-allocation-by-project", {
                     property: 'TypePath',
                     operator: 'contains',
                     value: 'PortfolioItem/'
-                }]
+                }],
+                remoteFilter: true
             },
             fieldLabel: 'Artifact Type',
             labelAlign: 'right',
@@ -268,6 +298,36 @@ Ext.define("attribute-allocation-by-project", {
             fieldLabel: 'Attribute Type',
             labelAlign: 'right',
             labelWidth: labelWidth,
+            handlesEvents: {
+                ready: function(cb){
+                    if (cb.getValue()){
+                        this.refreshWithNewModelType(cb.getValue());
+                    }
+                },
+                select: function(cb){
+                    if (cb.getValue()){
+                        this.refreshWithNewModelType(cb.getValue());
+                    }
+                }
+            }
+        },{
+            xtype: 'rallyfieldcombobox',
+            name: 'sumField',
+            model: 'PortfolioItem/Feature',
+            fieldLabel: 'Sum Field',
+            labelAlign: 'right',
+            labelWidth: labelWidth,
+            allowNoEntry: true,
+            noEntryText: 'Feature Count',
+            _isNotHidden: function(field){
+                var allowedFields = ['PreliminaryEstimate','RefinedEstimate','LeafStoryCount','LeafStoryPlanEstimateTotal','AcceptedLeafStoryPlanEstimateTotal','AcceptedLeafStoryCount'];
+                return Ext.Array.contains(allowedFields, field.name);
+
+                //return (field.name === 'PreliminaryEstimate') ||
+                //    (field.attributeDefinition && (field.attributeDefinition.AttributeType === 'QUANTITY' ||
+                //            field.attributeDefinition.AttributeType === 'DECIMAL' ||
+                //            field.attributeDefinition.AttributeType === 'INTEGER'));
+            },
             handlesEvents: {
                 ready: function(cb){
                     if (cb.getValue()){
@@ -371,12 +431,5 @@ Ext.define("attribute-allocation-by-project", {
     
     isExternal: function(){
         return typeof(this.getAppId()) == 'undefined';
-    },
-    
-    //onSettingsUpdate:  Override
-    onSettingsUpdate: function (settings){
-        this.logger.log('onSettingsUpdate',settings);
-        // Ext.apply(this, settings);
-        this.launch();
     }
 });

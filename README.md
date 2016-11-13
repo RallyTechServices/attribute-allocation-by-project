@@ -3,7 +3,7 @@
 ###Overview
 This app shows the percentage allocation of an artifact attribute across a set of projects for a particular query.  
 
-In this app, the artifacts are bucketed into the project at the configured project level whose hierarchy they are in.  
+In this app, the artifacts are bucketed into the project at the configured project level (relative to the current project) whose hierarchy they are in.  
 
 ![ScreenShot](/images/attribute-allocation-by-project.png)
 
@@ -11,14 +11,12 @@ For example given the following project structure:
 
 ![ScreenShot](/images/project-hierarchy.png)
 
-If the app is configured for Project Level = 2, the X-Axis will contain the following project buckets (also seen in the above screenshot):
+If the project scope is "Online Store, Inc" and app is configured for Project Level = 1, the X-Axis will contain the following project buckets (also seen in the above screenshot):
 #####Architecture
 #####Consumer Program / ART
 #####Reseller Program / ART
-#####Rally Essentials
-#####Rally Tools 
 
-*Note that these are projects that are second from the top of the hierarchy*      
+*Note that these are projects that are 1 level down from the current project*      
      
 #####Take the following features and their respective projects:
 
@@ -39,21 +37,33 @@ If the app is configured for Project Level = 2, the X-Axis will contain the foll
  * Feature 2
  * Feature 3 
 
-#####Rally Tool Training 
- * Feature 5 
+ * Feature 5 will not be included in the chart data becuase it resides in a project that is ourside the scope of the currently selected project.  
+ * Feature 6 will not be included becuase it resides at the current project level and cannot be bucketed.
 
-*Feature 6 will not be included in the chart data becuase it resides in a project that is a Project Level 1 project and the chart is only showing features bucketed by Project Level 2*  
- 
+  
+###Notes
+
+If an artifact has a null attribute value, then it will inherit the value from it's parent. 
+  
+Artifacts with Null values are included in the chart.  To calculate datasets for only artifacts with a populated attribute field, add a query to the app settings.  For example, if the attribute
+field is "Investment Category" and we want to exclude artifacts with an investment category of "none" (the equivalent to null for InvestmentCategory field), then add the following query:
+
+((InvestmentCategory != "None") OR (Parent.InvestmentCategory != "None"))
+
+Note that the Parent is added to the query as an OR so that we don't exclude features that inherit the investment category from their parents.  
   
 ###App Settings:
 ######Project Level
-  The project level to bucket artifacts into.  
+  The relative project level to bucket artifacts into.  
   
 ######Artifact Type
   the objects that represent the data in the chart.
   
 ######Artifact Field
   The field on the artifact type object that represents the attribute.  The values for this field will be the series.  
+  
+######Sum Field
+  The field to sum to calculate the percentage.  To  total the feature count, select "Feature Count".  Other options are Preliminary and Refined Estimates, and Leaf Story count/Estimate fields.  
   
 ######Show Project Classification
   Show the rendered project classification on the chart.  Project classification is a custom field on the Project Object. 
@@ -71,10 +81,8 @@ If the app is configured for Project Level = 2, the X-Axis will contain the foll
   Query to use to limit the dataset for the artifacts to be evaluated.  
   
 ### Notes
-  If an artifact exists in a project above the configured project level, then that artifact will NOT be included in the dataset or the chart.  
-  Only 4 colors are configured.  If there are more than 4 values, additional colors may need to be added in the chartColors configuration at the top of hte app.js file.      
-      
-      
+ * If an artifact exists in a project above the configured project level, then that artifact will NOT be included in the dataset or the chart.  
+ * Only 4 colors are configured.  If there are more than 4 values, additional colors may need to be added in the chartColors configuration at the top of hte app.js file.      
 
 ## Development Notes
 
