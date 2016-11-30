@@ -130,12 +130,18 @@ Ext.define("attribute-allocation-by-project", {
         Ext.Object.each(hash, function(val, projectObj){
             var data = [];
             Ext.Array.each(projectKeys, function(p){
-                data.push(hash[val][p] || 0)
+                data.push( hash[val][p] || 0 );
             });
-            series.push({
+            var series_data = {
                 name: val,
                 data: data
-            });
+            };
+            
+            if ( val == 'None' ) {
+                series_data.color = '#D3D3D3';
+            }
+            
+            series.push(series_data);
         });
 
         this.logger.log('_buildChart', categories, series);

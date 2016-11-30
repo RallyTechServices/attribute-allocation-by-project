@@ -1,5 +1,7 @@
 {
     "name": "Attribute Allocation by Project",
     "sdk": "2.1",
-    "className": "attribute-allocation-by-project"
+    "className": "attribute-allocation-by-project",
+    "story": "F166"
+
 }
