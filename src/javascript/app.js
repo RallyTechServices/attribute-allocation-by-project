@@ -31,7 +31,14 @@ Ext.define("attribute-allocation-by-project", {
            this.showAppMessage('Please configure an Artifact Type and Attribute Field setting.');
            return;
         }
-        this._initializeApp();
+        
+        this.getPortfolioItemTypes().then({ 
+            success: function(pis) {
+                this.PortfolioItemTypes = pis;
+                this._initializeApp();
+            },
+            scope: this
+        });
     },
     _validateAppSettings: function(){
         this.logger.log('_validateAppSettings', this.getAttributeField(), this.getArtifactType());
@@ -51,11 +58,12 @@ Ext.define("attribute-allocation-by-project", {
             }
         });
     },
+    
     fetchArtifacts: function(){
         this.logger.log('fetchArtifacts', this.projectUtility, this.getArtifactFilters().toString(),this.getArtifactType(),this.getArtifactFetch());
         this.setLoading(true);
         Ext.create('Rally.data.wsapi.Store',{
-            model: this.getArtifactType(),
+            model: this.getLowestLevelPITypePath(), //this.getArtifactType(),
             fetch: this.getArtifactFetch(),
             filters: this.getArtifactFilters(),
             limit: Infinity,
@@ -75,29 +83,34 @@ Ext.define("attribute-allocation-by-project", {
             scope: this
         });
     },
-    buildChart: function(records){
-        this.logger.log('buildRecords', records);
-
-        if (records.length === 0){
-            this.showAppMessage("No records found for the selected criteria.");
-            return;
-        }
-
+    
+    prepareChartData: function(records) {
+        this.logger.log('prepareChartData');
         var field = this.getAttributeField(),
-            sumField = this.getSumField();
+        sumField = this.getSumField();
         var hash = {},
             valueKeys = [],
             projectKeys = [];
-
+    
         for (var i=0; i<records.length; i++){
             var rec = records[i].getData();
-
+    
             var val = rec[field];
             if (!val || val === "None"){
                 val = rec.Parent && rec.Parent[field] || "None";
                // this.logger.log('using parent value: ', val);
             }
-            var project= this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
+            
+            var project = this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
+            if ( this.getArtifactType() != this.getLowestLevelPITypePath() ) {
+                if ( !rec.Parent ) {
+                    continue;
+                }
+                
+                project = this.projectUtility.getProjectAncestor(rec.Parent.Project.ObjectID, this.getProjectLevel());
+            }
+            
+            
             if (project){
                 if (!Ext.Array.contains(valueKeys, val)){
                     valueKeys.push(val);
@@ -105,28 +118,28 @@ Ext.define("attribute-allocation-by-project", {
                 if (!Ext.Array.contains(projectKeys, project)){
                     projectKeys.push(project);
                 }
-
+    
                 if (!hash[val]){
                     hash[val] = {};
                 }
                 if (!hash[val][project]){
                     hash[val][project] = 0;
                 }
-
+    
                 if (sumField){
                     hash[val][project] += rec[sumField] || 0;
                 } else {
                     hash[val][project]++;
                 }
-
-
+    
+    
             }
         }
-
+    
         this.logger.log('_buildChart projectKeys, valueKeys', projectKeys, valueKeys);
         var categories = Ext.Array.map(projectKeys, function(p){ return this.projectUtility.getProjectName(p); }, this),
             series = [];
-
+    
         Ext.Object.each(hash, function(val, projectObj){
             var data = [];
             Ext.Array.each(projectKeys, function(p){
@@ -143,22 +156,33 @@ Ext.define("attribute-allocation-by-project", {
             
             series.push(series_data);
         });
+        
+        return {
+            series: series,
+            categories: categories
+        };
+    },
+    
+    buildChart: function(records){
+        this.logger.log('buildRecords');
 
-        this.logger.log('_buildChart', categories, series);
-        var height = Math.max(400,categories.length * 30);
+        if (records.length === 0){
+            this.showAppMessage("No records found for the selected criteria.");
+            return;
+        }
+
+        var chartData = this.prepareChartData(records);
+
+        var height = Math.max(400,chartData.categories.length * 30);
         if ( this.getChartType() == "Column" ) {
             height = Math.max(400,this.getHeight());
         }
-        this.logger.log("Calculated Height: ", height);
         
         this.add({
             xtype: 'rallychart',
             height: height,
             chartColors: this.chartColors,
-            chartData: {
-                series: series,
-                categories: categories
-            },
+            chartData: chartData,
             chartConfig: {
                 chart: {
                     type: this.getChartType()
@@ -173,7 +197,7 @@ Ext.define("attribute-allocation-by-project", {
                     }
                 },
                 xAxis: {
-                    categories: categories,
+                    categories: chartData.categories,
                     labels: {
                         style: {
                             color: '#444',
@@ -250,6 +274,9 @@ Ext.define("attribute-allocation-by-project", {
     },
     getArtifactType: function(){
         return this.getSetting('artifactType');
+    },
+    getLowestLevelPITypePath: function() {
+        return this.PortfolioItemTypes[0].get('TypePath');
     },
     getSumField: function(){
         if (this.getSetting('sumField') && this.getSetting('sumField') === "PreliminaryEstimate"){
@@ -427,6 +454,45 @@ Ext.define("attribute-allocation-by-project", {
             }
         }];
     },
+    
+    getPortfolioItemTypes: function(workspace) {
+        var deferred = Ext.create('Deft.Deferred');
+                
+        var store_config = {
+            fetch: ['Name','ElementName','TypePath'],
+            model: 'TypeDefinition',
+            filters: [
+                {
+                    property: 'TypePath',
+                    operator: 'contains',
+                    value: 'PortfolioItem/'
+                }
+            ],
+            sorters: [ {property:'Ordinal', direction: 'ASC'}],
+            autoLoad: true,
+            listeners: {
+                load: function(store, records, successful) {
+                    if (successful){
+                        deferred.resolve(records);
+                    } else {
+                        deferred.reject('Failed to load types');
+                    }
+                }
+            }
+        };
+        
+        if ( !Ext.isEmpty(workspace) ) {
+            store_config.context = { 
+                project:null,
+                workspace: workspace._ref ? workspace._ref : workspace.get('_ref')
+            };
+        }
+                
+        var store = Ext.create('Rally.data.wsapi.Store', store_config );
+                    
+        return deferred.promise;
+    },
+    
     getOptions: function() {
         return [
             {

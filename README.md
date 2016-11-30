@@ -37,8 +37,8 @@ If the project scope is "Online Store, Inc" and app is configured for Project Le
  * Feature 2
  * Feature 3 
 
- * Feature 5 will not be included in the chart data becuase it resides in a project that is ourside the scope of the currently selected project.  
- * Feature 6 will not be included becuase it resides at the current project level and cannot be bucketed.
+ * Feature 5 will not be included in the chart data because it resides in a project that is outside the scope of the currently selected project.  
+ * Feature 6 will not be included because it resides at the current project level and cannot be bucketed.
 
   
 ###Notes
@@ -50,14 +50,18 @@ field is "Investment Category" and we want to exclude artifacts with an investme
 
 ((InvestmentCategory != "None") OR (Parent.InvestmentCategory != "None"))
 
-Note that the Parent is added to the query as an OR so that we don't exclude features that inherit the investment category from their parents.  
+Note that the Parent is added to the query as an OR so that we don't exclude features that inherit the investment category from their parents.
   
 ###App Settings:
 ######Project Level
   The relative project level to bucket artifacts into.  
   
 ######Artifact Type
-  the objects that represent the data in the chart.
+  The objects that represent the data in the chart.  The choice of an artifact type will determine how 
+  the data is bucketed by project and by artifact field selection.  The app will still go and get features
+  no matter what PI type is chosen.  If the feature has a value in the sum field, that value will be applied
+  to the project/grouping that belongs to the parent (initiative) record unless feature is the chosen Artifact
+  Type.
   
 ######Artifact Field
   The field on the artifact type object that represents the attribute.  The values for this field will be the series.  
@@ -82,7 +86,7 @@ Note that the Parent is added to the query as an OR so that we don't exclude fea
   
 ### Notes
  * If an artifact exists in a project above the configured project level, then that artifact will NOT be included in the dataset or the chart.  
- * Only 4 colors are configured.  If there are more than 4 values, additional colors may need to be added in the chartColors configuration at the top of hte app.js file.      
+ * Only 4 colors are configured.  If there are more than 4 values, additional colors may need to be added in the chartColors configuration at the top of the app.js file.      
 
 ## Development Notes
 
