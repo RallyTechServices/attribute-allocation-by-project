@@ -3,12 +3,12 @@
 <head>
     <title>Attribute Allocation by Project</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Wed Nov 30 2016 14:10:17 GMT-0800 (PST) -->
+    <!--  Build Date: Wed Nov 30 2016 14:26:50 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Nov 30 2016 14:10:17 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Wed Nov 30 2016 14:26:50 GMT-0800 (PST)";
         var BUILDER = "jmartin";
-        var CHECKSUM = 14682845292;
+        var CHECKSUM = 14750307379;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -399,7 +399,8 @@ Ext.define("attribute-allocation-by-project", {
     prepareChartData: function(records) {
         this.logger.log('prepareChartData');
         var field = this.getAttributeField(),
-        sumField = this.getSumField();
+            sumField = this.getSumField();
+        
         var hash = {},
             valueKeys = [],
             projectKeys = [];
@@ -422,7 +423,6 @@ Ext.define("attribute-allocation-by-project", {
                 project = this.projectUtility.getProjectAncestor(rec.Parent.Project.ObjectID, this.getProjectLevel());
             }
             
-            
             if (project){
                 if (!Ext.Array.contains(valueKeys, val)){
                     valueKeys.push(val);
@@ -443,8 +443,6 @@ Ext.define("attribute-allocation-by-project", {
                 } else {
                     hash[val][project]++;
                 }
-    
-    
             }
         }
     
@@ -635,6 +633,10 @@ Ext.define("attribute-allocation-by-project", {
                     property: 'TypePath',
                     operator: 'contains',
                     value: 'PortfolioItem/'
+                },{
+                    property:'Ordinal',
+                    operator: '<',
+                    value: 2
                 }],
                 remoteFilter: true
             },

@@ -87,7 +87,8 @@ Ext.define("attribute-allocation-by-project", {
     prepareChartData: function(records) {
         this.logger.log('prepareChartData');
         var field = this.getAttributeField(),
-        sumField = this.getSumField();
+            sumField = this.getSumField();
+        
         var hash = {},
             valueKeys = [],
             projectKeys = [];
@@ -110,7 +111,6 @@ Ext.define("attribute-allocation-by-project", {
                 project = this.projectUtility.getProjectAncestor(rec.Parent.Project.ObjectID, this.getProjectLevel());
             }
             
-            
             if (project){
                 if (!Ext.Array.contains(valueKeys, val)){
                     valueKeys.push(val);
@@ -131,8 +131,6 @@ Ext.define("attribute-allocation-by-project", {
                 } else {
                     hash[val][project]++;
                 }
-    
-    
             }
         }
     
@@ -323,6 +321,10 @@ Ext.define("attribute-allocation-by-project", {
                     property: 'TypePath',
                     operator: 'contains',
                     value: 'PortfolioItem/'
+                },{
+                    property:'Ordinal',
+                    operator: '<',
+                    value: 2
                 }],
                 remoteFilter: true
             },
