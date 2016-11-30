@@ -145,8 +145,15 @@ Ext.define("attribute-allocation-by-project", {
         });
 
         this.logger.log('_buildChart', categories, series);
+        var height = Math.max(400,categories.length * 30);
+        if ( this.getChartType() == "Column" ) {
+            height = Math.max(400,this.getHeight());
+        }
+        this.logger.log("Calculated Height: ", height);
+        
         this.add({
             xtype: 'rallychart',
+            height: height,
             chartColors: this.chartColors,
             chartData: {
                 series: series,

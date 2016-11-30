@@ -3,12 +3,12 @@
 <head>
     <title>Attribute Allocation by Project</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Wed Nov 30 2016 12:28:50 GMT-0800 (PST) -->
+    <!--  Build Date: Wed Nov 30 2016 12:47:16 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Nov 30 2016 12:28:50 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Wed Nov 30 2016 12:47:16 GMT-0800 (PST)";
         var BUILDER = "jmartin";
-        var CHECKSUM = 12622742222;
+        var CHECKSUM = 12884465673;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -457,8 +457,15 @@ Ext.define("attribute-allocation-by-project", {
         });
 
         this.logger.log('_buildChart', categories, series);
+        var height = Math.max(400,categories.length * 30);
+        if ( this.getChartType() == "Column" ) {
+            height = Math.max(400,this.getHeight());
+        }
+        this.logger.log("Calculated Height: ", height);
+        
         this.add({
             xtype: 'rallychart',
+            height: height,
             chartColors: this.chartColors,
             chartData: {
                 series: series,
