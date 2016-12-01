@@ -90,6 +90,10 @@ Note that the Parent is added to the query as an OR so that we don't exclude fea
 
 ## Development Notes
 
+* There are two spec files for fast tests about extracting information from the records.
+* Since the goal for initiatives is to get the information from features but bucket based on the initiative bucket,
+when initiative is called, we have to do two calls to the server to get data.  
+
 ### First Load
 
 If you've just downloaded this from github and you want to do development, 

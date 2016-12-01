@@ -32,7 +32,7 @@ Ext.define("attribute-allocation-by-project", {
            return;
         }
         
-        this.getPortfolioItemTypes().then({ 
+        CA.agile.technicalservices.util.WsapiUtils.getPortfolioItemTypes().then({ 
             success: function(pis) {
                 this.PortfolioItemTypes = pis;
                 this._initializeApp();
@@ -60,32 +60,74 @@ Ext.define("attribute-allocation-by-project", {
     },
     
     fetchArtifacts: function(){
-        this.logger.log('fetchArtifacts', this.projectUtility, this.getArtifactFilters().toString(),this.getArtifactType(),this.getArtifactFetch());
+        var me = this;
         this.setLoading(true);
-        Ext.create('Rally.data.wsapi.Store',{
-            model: this.getLowestLevelPITypePath(), //this.getArtifactType(),
-            fetch: this.getArtifactFetch(),
-            filters: this.getArtifactFilters(),
-            limit: Infinity,
-            pageSize: 2000,
-            compact: false
-           // context: {project: null}
-        }).load({
-            callback: function(records, operation){
-                this.setLoading(false);
-                if (operation.wasSuccessful()){
-                    this.buildChart(records);
-                } else {
-                    var msg = Ext.String.format("Error fetching {0} artifacts:  {1}",this.getArtifactType(),operation && operation.error && operation.error.errors.join(','));
-                    this.showErrorNotification(msg);
-                }
+        
+        Deft.Chain.pipeline([
+            this._fetchParentArtifacts,
+            this._fetchChildArtifacts
+        ],this).then({
+            success: this.buildChart,
+            failure: function(msg) {
+                var msg = Ext.String.format("Error fetching {0} artifacts: {1}",this.getArtifactType(),msg);
+                this.showErrorNotification(msg);
             },
             scope: this
+        }).always(function() { me.setLoading(false); });
+    },
+    
+    // This fetches the configured artifact type
+    _fetchParentArtifacts: function() {
+        this.setLoading("Fetching " + this.getArtifactType() + "...");
+
+        var config = {
+            model   : this.getArtifactType(),
+            fetch   : this.getArtifactFetch(),
+            filters : this.getArtifactFilters(),
+            limit   : Infinity,
+            pageSize: 2000,
+            compact : false
+        };
+        
+        return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
+    },
+    
+    // If feature is chosen, we skip this step
+    // If initiative is chosen, we use that to constrain which features to get
+    _fetchChildArtifacts: function(initiatives) {
+        if ( this.getArtifactType() == this.getLowestLevelPITypePath() ) {
+            return initiatives;
+        }
+        this.setLoading("Fetching " + this.getLowestLevelPITypePath() + "...");
+        
+        var filter_array = Ext.Array.map(initiatives, function(initiative){
+            return {property:'Parent.ObjectID',value:initiative.get('ObjectID')};
         });
+        
+        if ( filter_array.length == 0 ) {
+            filter_array = [{property:'Parent.ObjectID',value:-1}];
+        }
+        
+        this.logger.log('_fetchChildArtifacts with # of filters: ', filter_array.length);
+        
+        var config = {
+            model   : this.getLowestLevelPITypePath(),
+            fetch   : this.getArtifactFetch(),
+            filters : Rally.data.wsapi.Filter.or(filter_array),
+            limit   : Infinity,
+            pageSize: 2000,
+            compact : false,
+            context: {project: null},
+            enablePostGet: true
+        };
+        
+        return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecordsParallel(config);
+        //return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
     },
     
     prepareChartData: function(records) {
-        this.logger.log('prepareChartData');
+        this.setLoading('Preparing Data....');
+        
         var field = this.getAttributeField(),
             sumField = this.getSumField();
         
@@ -235,6 +277,9 @@ Ext.define("attribute-allocation-by-project", {
                 }
             }
         });
+        
+        this.setLoading(false);
+        return;
     },
     showAppMessage: function(msg){
         this.removeAll();
@@ -445,44 +490,6 @@ Ext.define("attribute-allocation-by-project", {
                 }
             }
         }];
-    },
-    
-    getPortfolioItemTypes: function(workspace) {
-        var deferred = Ext.create('Deft.Deferred');
-                
-        var store_config = {
-            fetch: ['Name','ElementName','TypePath'],
-            model: 'TypeDefinition',
-            filters: [
-                {
-                    property: 'TypePath',
-                    operator: 'contains',
-                    value: 'PortfolioItem/'
-                }
-            ],
-            sorters: [ {property:'Ordinal', direction: 'ASC'}],
-            autoLoad: true,
-            listeners: {
-                load: function(store, records, successful) {
-                    if (successful){
-                        deferred.resolve(records);
-                    } else {
-                        deferred.reject('Failed to load types');
-                    }
-                }
-            }
-        };
-        
-        if ( !Ext.isEmpty(workspace) ) {
-            store_config.context = { 
-                project:null,
-                workspace: workspace._ref ? workspace._ref : workspace.get('_ref')
-            };
-        }
-                
-        var store = Ext.create('Rally.data.wsapi.Store', store_config );
-                    
-        return deferred.promise;
     },
     
     getOptions: function() {

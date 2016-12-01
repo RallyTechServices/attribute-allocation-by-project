@@ -3,12 +3,12 @@
 <head>
     <title>Attribute Allocation by Project</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Thu Dec 01 2016 07:54:46 GMT-0800 (PST) -->
+    <!--  Build Date: Thu Dec 01 2016 10:55:52 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Dec 01 2016 07:54:46 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Thu Dec 01 2016 10:55:52 GMT-0800 (PST)";
         var BUILDER = "jmartin";
-        var CHECKSUM = 15357400123;
+        var CHECKSUM = 22378722497;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -231,6 +231,45 @@ Ext.define('TSCalculator',{
 
     
 });
+Ext.define('PortfolioItemCostTracking.promise.ParallelThrottle',{
+    requires: ['Deft.promise.Promise'],
+    statics: {
+
+        throttle: function (fns, maxParallelCalls, scope) {
+            
+            if (maxParallelCalls <= 0 || fns.length < maxParallelCalls){
+                return Deft.promise.Chain.parallel(fns, scope);
+            }
+
+            console.log('multiple');
+
+            var parallelFns = [],
+                fnChunks = [],
+                idx = -1;
+
+            for (var i = 0; i < fns.length; i++) {
+                if (i % maxParallelCalls === 0) {
+                    idx++;
+                    fnChunks[idx] = [];
+                }
+                fnChunks[idx].push(fns[i]);
+            }
+
+            _.each(fnChunks, function (chunk) {
+                parallelFns.push(function () {
+                    return Deft.promise.Chain.parallel(chunk, scope);
+                });
+            });
+
+            return Deft.Promise.reduce(parallelFns, function(groupResults, fnGroup) {
+                return Deft.Promise.when(fnGroup.call(scope)).then(function(results) {
+                    groupResults = groupResults.concat(results || []);
+                    return groupResults;
+                });
+            }, []);
+        }
+    }
+});
 Ext.define('CA.technicalservices.utils.ProjectUtilities',{
 
     fetch: ['ObjectID','Name','Parent'],
@@ -338,6 +377,145 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
         return ancestory.length;
     }
 });
+Ext.define('CA.agile.technicalservices.util.WsapiUtils',{
+    singleton: true,
+    
+    
+    // given a store config, loads the records while returning a promise
+    loadWsapiRecords: function(config) {
+        var deferred = Ext.create('Deft.Deferred');
+
+        Ext.create('Rally.data.wsapi.Store',config).load({
+            callback: function(records, operation){
+                if (operation.wasSuccessful()){
+                    deferred.resolve(records);
+                } else {
+                    deferred.reject(operation.error.errors.join(','));
+                }
+            }
+        });
+        return deferred.promise;
+    },
+    
+    getPortfolioItemTypes: function(workspace) {
+        var deferred = Ext.create('Deft.Deferred');
+                
+        var store_config = {
+            fetch: ['Name','ElementName','TypePath'],
+            model: 'TypeDefinition',
+            filters: [
+                {
+                    property: 'TypePath',
+                    operator: 'contains',
+                    value: 'PortfolioItem/'
+                }
+            ],
+            sorters: [ {property:'Ordinal', direction: 'ASC'}],
+            autoLoad: true,
+            listeners: {
+                load: function(store, records, successful) {
+                    if (successful){
+                        deferred.resolve(records);
+                    } else {
+                        deferred.reject('Failed to load types');
+                    }
+                }
+            }
+        };
+        
+        if ( !Ext.isEmpty(workspace) ) {
+            store_config.context = { 
+                project:null,
+                workspace: workspace._ref ? workspace._ref : workspace.get('_ref')
+            };
+        }
+                
+        var store = Ext.create('Rally.data.wsapi.Store', store_config );
+                    
+        return deferred.promise;
+    },
+    
+    loadWsapiRecordsParallel: function(store_config){
+        var deferred = Ext.create('Deft.Deferred'),
+            promises = [],
+            thread_count = 12,
+            me = this;
+
+        var config = Ext.Object.merge({
+            pageSize: 2000
+        },store_config);
+        
+        config.autoLoad = false;
+        config.limit    = config.pageSize;
+        
+        this.fetchWsapiCount(store_config).then({
+            success: function(totalCount){
+                var store = Ext.create('Rally.data.wsapi.Store', config),
+                    totalPages = Math.ceil(totalCount/config.pageSize);
+
+                var pages = _.range(1,totalPages+1,1);
+
+                _.each(pages, function(page){
+                    promises.push(function () {
+                        return me.loadStorePage(page, store);
+                    });
+                });
+
+                PortfolioItemCostTracking.promise.ParallelThrottle.throttle(promises, thread_count, me).then({
+                    success: function(results){
+                        deferred.resolve(_.flatten(results));
+                    },
+                    failure: function(msg){
+                        deferred.reject(msg);
+                    }
+                });
+            },
+            failure: function(msg){
+                deferred.reject(msg);
+            }
+        });
+        return deferred;
+    },
+    
+    fetchWsapiCount: function(store_config){
+        var deferred = Ext.create('Deft.Deferred');
+
+        var config = Ext.Object.merge(store_config, {
+            fetch: ['ObjectID'],
+            limit: 1,
+            pageSize: 1
+        });
+        
+        Ext.create('Rally.data.wsapi.Store',config).load({
+            callback: function(records, operation, success){
+                if (success){
+                    deferred.resolve(operation.resultSet.totalRecords);
+                } else {
+                    deferred.reject(Ext.String.format("Error getting {0} count: {2}", config.model, operation.error.errors.join(',')));
+                }
+            }
+        });
+        return deferred;
+    },
+    
+    loadStorePage: function(pageNum, store){
+        var deferred = Ext.create('Deft.Deferred');
+        
+        store.loadPage(pageNum, {
+            callback: function(records, operation){
+                
+                if (operation.wasSuccessful()){
+                     deferred.resolve(records);
+                } else {
+                    deferred.reject('loadStorePage error: ' + operation.error.errors.join(','));
+                }
+            }
+        });
+
+        return deferred;
+    }
+    
+});
 Ext.define("attribute-allocation-by-project", {
     extend: 'Rally.app.App',
     componentCls: 'app',
@@ -372,7 +550,7 @@ Ext.define("attribute-allocation-by-project", {
            return;
         }
         
-        this.getPortfolioItemTypes().then({ 
+        CA.agile.technicalservices.util.WsapiUtils.getPortfolioItemTypes().then({ 
             success: function(pis) {
                 this.PortfolioItemTypes = pis;
                 this._initializeApp();
@@ -400,32 +578,74 @@ Ext.define("attribute-allocation-by-project", {
     },
     
     fetchArtifacts: function(){
-        this.logger.log('fetchArtifacts', this.projectUtility, this.getArtifactFilters().toString(),this.getArtifactType(),this.getArtifactFetch());
+        var me = this;
         this.setLoading(true);
-        Ext.create('Rally.data.wsapi.Store',{
-            model: this.getLowestLevelPITypePath(), //this.getArtifactType(),
-            fetch: this.getArtifactFetch(),
-            filters: this.getArtifactFilters(),
-            limit: Infinity,
-            pageSize: 2000,
-            compact: false
-           // context: {project: null}
-        }).load({
-            callback: function(records, operation){
-                this.setLoading(false);
-                if (operation.wasSuccessful()){
-                    this.buildChart(records);
-                } else {
-                    var msg = Ext.String.format("Error fetching {0} artifacts:  {1}",this.getArtifactType(),operation && operation.error && operation.error.errors.join(','));
-                    this.showErrorNotification(msg);
-                }
+        
+        Deft.Chain.pipeline([
+            this._fetchParentArtifacts,
+            this._fetchChildArtifacts
+        ],this).then({
+            success: this.buildChart,
+            failure: function(msg) {
+                var msg = Ext.String.format("Error fetching {0} artifacts: {1}",this.getArtifactType(),msg);
+                this.showErrorNotification(msg);
             },
             scope: this
+        }).always(function() { me.setLoading(false); });
+    },
+    
+    // This fetches the configured artifact type
+    _fetchParentArtifacts: function() {
+        this.setLoading("Fetching " + this.getArtifactType() + "...");
+
+        var config = {
+            model   : this.getArtifactType(),
+            fetch   : this.getArtifactFetch(),
+            filters : this.getArtifactFilters(),
+            limit   : Infinity,
+            pageSize: 2000,
+            compact : false
+        };
+        
+        return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
+    },
+    
+    // If feature is chosen, we skip this step
+    // If initiative is chosen, we use that to constrain which features to get
+    _fetchChildArtifacts: function(initiatives) {
+        if ( this.getArtifactType() == this.getLowestLevelPITypePath() ) {
+            return initiatives;
+        }
+        this.setLoading("Fetching " + this.getLowestLevelPITypePath() + "...");
+        
+        var filter_array = Ext.Array.map(initiatives, function(initiative){
+            return {property:'Parent.ObjectID',value:initiative.get('ObjectID')};
         });
+        
+        if ( filter_array.length == 0 ) {
+            filter_array = [{property:'Parent.ObjectID',value:-1}];
+        }
+        
+        this.logger.log('_fetchChildArtifacts with # of filters: ', filter_array.length);
+        
+        var config = {
+            model   : this.getLowestLevelPITypePath(),
+            fetch   : this.getArtifactFetch(),
+            filters : Rally.data.wsapi.Filter.or(filter_array),
+            limit   : Infinity,
+            pageSize: 2000,
+            compact : false,
+            context: {project: null},
+            enablePostGet: true
+        };
+        
+        return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecordsParallel(config);
+        //return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
     },
     
     prepareChartData: function(records) {
-        this.logger.log('prepareChartData');
+        this.setLoading('Preparing Data....');
+        
         var field = this.getAttributeField(),
             sumField = this.getSumField();
         
@@ -575,6 +795,9 @@ Ext.define("attribute-allocation-by-project", {
                 }
             }
         });
+        
+        this.setLoading(false);
+
     },
     showAppMessage: function(msg){
         this.removeAll();
@@ -785,44 +1008,6 @@ Ext.define("attribute-allocation-by-project", {
                 }
             }
         }];
-    },
-    
-    getPortfolioItemTypes: function(workspace) {
-        var deferred = Ext.create('Deft.Deferred');
-                
-        var store_config = {
-            fetch: ['Name','ElementName','TypePath'],
-            model: 'TypeDefinition',
-            filters: [
-                {
-                    property: 'TypePath',
-                    operator: 'contains',
-                    value: 'PortfolioItem/'
-                }
-            ],
-            sorters: [ {property:'Ordinal', direction: 'ASC'}],
-            autoLoad: true,
-            listeners: {
-                load: function(store, records, successful) {
-                    if (successful){
-                        deferred.resolve(records);
-                    } else {
-                        deferred.reject('Failed to load types');
-                    }
-                }
-            }
-        };
-        
-        if ( !Ext.isEmpty(workspace) ) {
-            store_config.context = { 
-                project:null,
-                workspace: workspace._ref ? workspace._ref : workspace.get('_ref')
-            };
-        }
-                
-        var store = Ext.create('Rally.data.wsapi.Store', store_config );
-                    
-        return deferred.promise;
     },
     
     getOptions: function() {
