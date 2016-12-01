@@ -1,4 +1,4 @@
-describe("When evaluating cateories for records", function() {
+describe("When evaluating categories for records", function() {
     
     it("should provide a value when the record has it",function(){
         var record = {

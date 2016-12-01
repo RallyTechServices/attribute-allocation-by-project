@@ -84,7 +84,6 @@ Ext.define("attribute-allocation-by-project", {
         });
     },
     
-    
     prepareChartData: function(records) {
         this.logger.log('prepareChartData');
         var field = this.getAttributeField(),
@@ -104,18 +103,13 @@ Ext.define("attribute-allocation-by-project", {
                 if ( !rec.Parent ) {
                     continue;
                 }
-                
                 project = this.projectUtility.getProjectAncestor(rec.Parent.Project.ObjectID, this.getProjectLevel());
             }
             
             if (project){
-                if (!Ext.Array.contains(categoryKeys, category)){
-                    categoryKeys.push(category);
-                }
-                if (!Ext.Array.contains(projectKeys, project)){
-                    projectKeys.push(project);
-                }
-    
+                categoryKeys = Ext.Array.merge(categoryKeys, [category]);
+                projectKeys  = Ext.Array.merge(projectKeys, [project]);
+                
                 if (!hash[category]){
                     hash[category] = {};
                 }
@@ -124,7 +118,7 @@ Ext.define("attribute-allocation-by-project", {
                 }
     
                 if (sumField){
-                    hash[category][project] += rec[sumField] || 0;
+                    hash[category][project] += TSCalculator.getValueFromSumField(rec,sumField);
                 } else {
                     hash[category][project]++;
                 }
