@@ -31,7 +31,14 @@ Ext.define("attribute-allocation-by-project", {
            this.showAppMessage('Please configure an Artifact Type and Attribute Field setting.');
            return;
         }
-        this._initializeApp();
+        
+        CA.agile.technicalservices.util.WsapiUtils.getPortfolioItemTypes().then({ 
+            success: function(pis) {
+                this.PortfolioItemTypes = pis;
+                this._initializeApp();
+            },
+            scope: this
+        });
     },
     _validateAppSettings: function(){
         this.logger.log('_validateAppSettings', this.getAttributeField(), this.getArtifactType());
@@ -51,101 +58,161 @@ Ext.define("attribute-allocation-by-project", {
             }
         });
     },
+    
     fetchArtifacts: function(){
-        this.logger.log('fetchArtifacts', this.projectUtility, this.getArtifactFilters().toString(),this.getArtifactType(),this.getArtifactFetch());
+        var me = this;
         this.setLoading(true);
-        Ext.create('Rally.data.wsapi.Store',{
-            model: this.getArtifactType(),
-            fetch: this.getArtifactFetch(),
-            filters: this.getArtifactFilters(),
-            limit: Infinity,
-            pageSize: 2000,
-            compact: false
-           // context: {project: null}
-        }).load({
-            callback: function(records, operation){
-                this.setLoading(false);
-                if (operation.wasSuccessful()){
-                    this.buildChart(records);
-                } else {
-                    var msg = Ext.String.format("Error fetching {0} artifacts:  {1}",this.getArtifactType(),operation && operation.error && operation.error.errors.join(','));
-                    this.showErrorNotification(msg);
-                }
+        
+        Deft.Chain.pipeline([
+            this._fetchParentArtifacts,
+            this._fetchChildArtifacts
+        ],this).then({
+            success: this.buildChart,
+            failure: function(msg) {
+                var msg = Ext.String.format("Error fetching {0} artifacts: {1}",this.getArtifactType(),msg);
+                this.showErrorNotification(msg);
             },
             scope: this
-        });
+        }).always(function() { me.setLoading(false); });
     },
+    
+    // This fetches the configured artifact type
+    _fetchParentArtifacts: function() {
+        this.setLoading("Fetching " + this.getArtifactType() + "...");
+
+        var config = {
+            model   : this.getArtifactType(),
+            fetch   : this.getArtifactFetch(),
+            filters : this.getArtifactFilters(),
+            limit   : Infinity,
+            pageSize: 2000,
+            compact : false
+        };
+        
+        return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
+    },
+    
+    // If feature is chosen, we skip this step
+    // If initiative is chosen, we use that to constrain which features to get
+    _fetchChildArtifacts: function(initiatives) {
+        if ( this.getArtifactType() == this.getLowestLevelPITypePath() ) {
+            return initiatives;
+        }
+        this.setLoading("Fetching " + this.getLowestLevelPITypePath() + "...");
+        
+        var filter_array = Ext.Array.map(initiatives, function(initiative){
+            return {property:'Parent.ObjectID',value:initiative.get('ObjectID')};
+        });
+        
+        if ( filter_array.length == 0 ) {
+            filter_array = [{property:'Parent.ObjectID',value:-1}];
+        }
+        
+        this.logger.log('_fetchChildArtifacts with # of filters: ', filter_array.length);
+        
+        var config = {
+            model   : this.getLowestLevelPITypePath(),
+            fetch   : this.getArtifactFetch(),
+            filters : Rally.data.wsapi.Filter.or(filter_array),
+            limit   : Infinity,
+            pageSize: 2000,
+            compact : false,
+            context: {project: null},
+            enablePostGet: true
+        };
+        
+        return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecordsParallel(config);
+        //return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
+    },
+    
+    prepareChartData: function(records) {
+        this.setLoading('Preparing Data....');
+        
+        var field = this.getAttributeField(),
+            sumField = this.getSumField();
+        
+        var hash = {},
+            categoryKeys = [],
+            projectKeys = [];
+    
+        for (var i=0; i<records.length; i++){
+            var rec = records[i].getData();
+    
+            var category = TSCalculator.getCategoryFromRecordData(rec,field);
+            
+            var project = this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
+            if ( this.getArtifactType() != this.getLowestLevelPITypePath() ) {
+                if ( !rec.Parent ) {
+                    continue;
+                }
+                project = this.projectUtility.getProjectAncestor(rec.Parent.Project.ObjectID, this.getProjectLevel());
+            }
+            
+            if (project){
+                categoryKeys = Ext.Array.merge(categoryKeys, [category]);
+                projectKeys  = Ext.Array.merge(projectKeys, [project]);
+                
+                if (!hash[category]){
+                    hash[category] = {};
+                }
+                if (!hash[category][project]){
+                    hash[category][project] = 0;
+                }
+    
+                if (sumField){
+                    hash[category][project] += TSCalculator.getValueFromSumField(rec,sumField);
+                } else {
+                    hash[category][project]++;
+                }
+            }
+        }
+    
+        var categories = Ext.Array.map(projectKeys, function(p){ return this.projectUtility.getProjectName(p); }, this),
+            series = [];
+    
+        Ext.Object.each(hash, function(category, projectObj){
+            var data = [];
+            Ext.Array.each(projectKeys, function(p){
+                data.push( hash[category][p] || 0 );
+            });
+            var series_data = {
+                name: category,
+                data: data
+            };
+            
+            if ( category == 'None' ) {
+                series_data.color = '#D3D3D3';
+            }
+            
+            series.push(series_data);
+        });
+        
+        return {
+            series: series,
+            categories: categories
+        };
+    },
+    
     buildChart: function(records){
-        this.logger.log('buildRecords', records);
+        this.logger.log('buildRecords');
 
         if (records.length === 0){
             this.showAppMessage("No records found for the selected criteria.");
             return;
         }
 
-        var field = this.getAttributeField(),
-            sumField = this.getSumField();
-        var hash = {},
-            valueKeys = [],
-            projectKeys = [];
+        var chartData = this.prepareChartData(records);
 
-        for (var i=0; i<records.length; i++){
-            var rec = records[i].getData();
-
-            var val = rec[field];
-            if (!val || val === "None"){
-                val = rec.Parent && rec.Parent[field] || "None";
-               // this.logger.log('using parent value: ', val);
-            }
-            var project= this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
-            if (project){
-                if (!Ext.Array.contains(valueKeys, val)){
-                    valueKeys.push(val);
-                }
-                if (!Ext.Array.contains(projectKeys, project)){
-                    projectKeys.push(project);
-                }
-
-                if (!hash[val]){
-                    hash[val] = {};
-                }
-                if (!hash[val][project]){
-                    hash[val][project] = 0;
-                }
-
-                if (sumField){
-                    hash[val][project] += rec[sumField] || 0;
-                } else {
-                    hash[val][project]++;
-                }
-
-
-            }
+        var height = Math.max(400,chartData.categories.length * 30);
+        if ( this.getChartType() == "Column" ) {
+            height = Math.max(400,this.getHeight());
         }
-
-        this.logger.log('_buildChart projectKeys, valueKeys', projectKeys, valueKeys);
-        var categories = Ext.Array.map(projectKeys, function(p){ return this.projectUtility.getProjectName(p); }, this),
-            series = [];
-
-        Ext.Object.each(hash, function(val, projectObj){
-            var data = [];
-            Ext.Array.each(projectKeys, function(p){
-                data.push(hash[val][p] || 0)
-            });
-            series.push({
-                name: val,
-                data: data
-            });
-        });
-
-        this.logger.log('_buildChart', categories, series);
+        
         this.add({
             xtype: 'rallychart',
+            height: height,
             chartColors: this.chartColors,
-            chartData: {
-                series: series,
-                categories: categories
-            },
+            chartData: chartData,
             chartConfig: {
                 chart: {
                     type: this.getChartType()
@@ -160,7 +227,7 @@ Ext.define("attribute-allocation-by-project", {
                     }
                 },
                 xAxis: {
-                    categories: categories,
+                    categories: chartData.categories,
                     labels: {
                         style: {
                             color: '#444',
@@ -210,6 +277,9 @@ Ext.define("attribute-allocation-by-project", {
                 }
             }
         });
+        
+        this.setLoading(false);
+        return;
     },
     showAppMessage: function(msg){
         this.removeAll();
@@ -237,6 +307,9 @@ Ext.define("attribute-allocation-by-project", {
     },
     getArtifactType: function(){
         return this.getSetting('artifactType');
+    },
+    getLowestLevelPITypePath: function() {
+        return this.PortfolioItemTypes[0].get('TypePath');
     },
     getSumField: function(){
         if (this.getSetting('sumField') && this.getSetting('sumField') === "PreliminaryEstimate"){
@@ -283,6 +356,10 @@ Ext.define("attribute-allocation-by-project", {
                     property: 'TypePath',
                     operator: 'contains',
                     value: 'PortfolioItem/'
+                },{
+                    property:'Ordinal',
+                    operator: '<',
+                    value: 2
                 }],
                 remoteFilter: true
             },
@@ -298,6 +375,30 @@ Ext.define("attribute-allocation-by-project", {
             fieldLabel: 'Attribute Type',
             labelAlign: 'right',
             labelWidth: labelWidth,
+            _isNotHidden: function(field) {
+
+                var blackList = ['Subscription','Workspace','Parent',
+                    'RevisionHistory','PortfolioItemType'];  
+                
+                if (Ext.Array.contains(blackList, field.name)) { return false; }
+                
+                if ( field.hidden ) { return false; }
+                var defn = field.attributeDefinition;
+                if ( !field.attributeDefinition) { return false; }
+                
+                if ( defn.AttributeType == 'STRING' && defn.Constrained ) {
+                    return true;
+                }       
+                if ( defn.AttributeType == 'RATING' ) {
+                    return true;
+                }
+                
+                if (defn.AttributeType == "OBJECT" ) {
+                    return true;
+                }
+                
+                return false;
+            },
             handlesEvents: {
                 ready: function(cb){
                     if (cb.getValue()){
@@ -414,6 +515,7 @@ Ext.define("attribute-allocation-by-project", {
             }
         }];
     },
+    
     getOptions: function() {
         return [
             {

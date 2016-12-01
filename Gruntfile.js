@@ -11,13 +11,21 @@ module.exports = function(grunt) {
     
     if ( grunt.file.exists(config_file_name) ) {
     
-        config = grunt.file.readJSON('config.json');
+        config = grunt.file.readJSON(config_file_name);
 
-        config.js_files = grunt.file.expand(['src/javascript/utils/*.js','src/javascript/*.js']);
-
+        if ( config.javascript ) {
+            config.js_files = config.javascript;
+        } else {
+            config.js_files = grunt.file.expand(['src/javascript/utils/*.js','src/javascript/*.js']);
+        }
+        
         config.ugly_files = grunt.file.expand(['deploy/app.min.*.js']);
         
-        config.css_files = grunt.file.expand( 'src/style/*.css' );
+        if ( config.css ) {
+            config.css_files = config.css;
+        } else {
+            config.css_files = grunt.file.expand( 'src/style/*.css' );
+        }        
         
         config.js_contents = " ";
         for (var i=0;i<config.js_files.length;i++) {
@@ -93,7 +101,7 @@ module.exports = function(grunt) {
                 }
         },
         watch: {
-            files: ['src/javascript/**/*.js', 'src/style/*.css'],
+            files: [config.js_files, config.css_files],
             tasks: ['deploy']
         },
         jasmine: {
@@ -137,7 +145,7 @@ module.exports = function(grunt) {
         var deploy_file = grunt.file.read(deploy_file_name);
 
         string = deploy_file.replace(/var CHECKSUM = .*;/,"");
-        string = string.replace(/var BUILDER = .*;/,"");
+        string = string.replace(/var BUILDER  = .*;/,"");
         string = string.replace(/\s/g,"");  //Remove all whitespace from the string.
 
         for (i = 0; i < string.length; i++) {
@@ -377,5 +385,5 @@ module.exports = function(grunt) {
     grunt.registerTask('test-fast', "Run tests that don't need to connect to Rally", ['jasmine:fast']);
     grunt.registerTask('test-slow', "Run tests that need to connect to Rally", ['jasmine:slow']);
 
-    grunt.registerTask('deploy', 'Build and deploy app to the location in auth.json',['build','install']);
+    grunt.registerTask('deploy', 'Build and deploy app to the location in auth.json',['build','test-fast','install']);
 };
