@@ -375,6 +375,30 @@ Ext.define("attribute-allocation-by-project", {
             fieldLabel: 'Attribute Type',
             labelAlign: 'right',
             labelWidth: labelWidth,
+            _isNotHidden: function(field) {
+
+                var blackList = ['Subscription','Workspace','Parent',
+                    'RevisionHistory','PortfolioItemType'];  
+                
+                if (Ext.Array.contains(blackList, field.name)) { return false; }
+                
+                if ( field.hidden ) { return false; }
+                var defn = field.attributeDefinition;
+                if ( !field.attributeDefinition) { return false; }
+                
+                if ( defn.AttributeType == 'STRING' && defn.Constrained ) {
+                    return true;
+                }       
+                if ( defn.AttributeType == 'RATING' ) {
+                    return true;
+                }
+                
+                if (defn.AttributeType == "OBJECT" ) {
+                    return true;
+                }
+                
+                return false;
+            },
             handlesEvents: {
                 ready: function(cb){
                     if (cb.getValue()){

@@ -3,12 +3,12 @@
 <head>
     <title>Attribute Allocation by Project</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Thu Dec 01 2016 10:55:52 GMT-0800 (PST) -->
+    <!--  Build Date: Thu Dec 01 2016 12:43:56 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Dec 01 2016 10:55:52 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Thu Dec 01 2016 12:43:56 GMT-0800 (PST)";
         var BUILDER = "jmartin";
-        var CHECKSUM = 22378722497;
+        var CHECKSUM = 23331449121;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -797,7 +797,7 @@ Ext.define("attribute-allocation-by-project", {
         });
         
         this.setLoading(false);
-
+        return;
     },
     showAppMessage: function(msg){
         this.removeAll();
@@ -893,6 +893,30 @@ Ext.define("attribute-allocation-by-project", {
             fieldLabel: 'Attribute Type',
             labelAlign: 'right',
             labelWidth: labelWidth,
+            _isNotHidden: function(field) {
+
+                var blackList = ['Subscription','Workspace','Parent',
+                    'RevisionHistory','PortfolioItemType'];  
+                
+                if (Ext.Array.contains(blackList, field.name)) { return false; }
+                
+                if ( field.hidden ) { return false; }
+                var defn = field.attributeDefinition;
+                if ( !field.attributeDefinition) { return false; }
+                
+                if ( defn.AttributeType == 'STRING' && defn.Constrained ) {
+                    return true;
+                }       
+                if ( defn.AttributeType == 'RATING' ) {
+                    return true;
+                }
+                
+                if (defn.AttributeType == "OBJECT" ) {
+                    return true;
+                }
+                
+                return false;
+            },
             handlesEvents: {
                 ready: function(cb){
                     if (cb.getValue()){
