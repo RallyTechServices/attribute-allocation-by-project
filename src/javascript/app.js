@@ -84,23 +84,20 @@ Ext.define("attribute-allocation-by-project", {
         });
     },
     
+    
     prepareChartData: function(records) {
         this.logger.log('prepareChartData');
         var field = this.getAttributeField(),
             sumField = this.getSumField();
         
         var hash = {},
-            valueKeys = [],
+            categoryKeys = [],
             projectKeys = [];
     
         for (var i=0; i<records.length; i++){
             var rec = records[i].getData();
     
-            var val = rec[field];
-            if (!val || val === "None"){
-                val = rec.Parent && rec.Parent[field] || "None";
-               // this.logger.log('using parent value: ', val);
-            }
+            var category = TSCalculator.getCategoryFromRecordData(rec,field);
             
             var project = this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
             if ( this.getArtifactType() != this.getLowestLevelPITypePath() ) {
@@ -112,43 +109,42 @@ Ext.define("attribute-allocation-by-project", {
             }
             
             if (project){
-                if (!Ext.Array.contains(valueKeys, val)){
-                    valueKeys.push(val);
+                if (!Ext.Array.contains(categoryKeys, category)){
+                    categoryKeys.push(category);
                 }
                 if (!Ext.Array.contains(projectKeys, project)){
                     projectKeys.push(project);
                 }
     
-                if (!hash[val]){
-                    hash[val] = {};
+                if (!hash[category]){
+                    hash[category] = {};
                 }
-                if (!hash[val][project]){
-                    hash[val][project] = 0;
+                if (!hash[category][project]){
+                    hash[category][project] = 0;
                 }
     
                 if (sumField){
-                    hash[val][project] += rec[sumField] || 0;
+                    hash[category][project] += rec[sumField] || 0;
                 } else {
-                    hash[val][project]++;
+                    hash[category][project]++;
                 }
             }
         }
     
-        this.logger.log('_buildChart projectKeys, valueKeys', projectKeys, valueKeys);
         var categories = Ext.Array.map(projectKeys, function(p){ return this.projectUtility.getProjectName(p); }, this),
             series = [];
     
-        Ext.Object.each(hash, function(val, projectObj){
+        Ext.Object.each(hash, function(category, projectObj){
             var data = [];
             Ext.Array.each(projectKeys, function(p){
-                data.push( hash[val][p] || 0 );
+                data.push( hash[category][p] || 0 );
             });
             var series_data = {
-                name: val,
+                name: category,
                 data: data
             };
             
-            if ( val == 'None' ) {
+            if ( category == 'None' ) {
                 series_data.color = '#D3D3D3';
             }
             
