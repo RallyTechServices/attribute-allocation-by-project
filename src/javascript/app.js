@@ -65,9 +65,9 @@ Ext.define("attribute-allocation-by-project", {
         
         Deft.Chain.pipeline([
             this._fetchParentArtifacts,
-            this._fetchChildArtifacts
+            this._fetchChildArtifacts,
+            this.buildChart
         ],this).then({
-            success: this.buildChart,
             failure: function(msg) {
                 var msg = Ext.String.format("Error fetching {0} artifacts: {1}",this.getArtifactType(),msg);
                 this.showErrorNotification(msg);
@@ -78,7 +78,7 @@ Ext.define("attribute-allocation-by-project", {
     
     // This fetches the configured artifact type
     _fetchParentArtifacts: function() {
-        this.setLoading("Fetching " + this.getArtifactType() + "...");
+        this.setLoading("Fetching " + this.getArtifactType() + "s...");
 
         var config = {
             model   : this.getArtifactType(),
@@ -89,7 +89,9 @@ Ext.define("attribute-allocation-by-project", {
             compact : false
         };
         
-        return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
+        return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecordsParallel(config);
+
+        //return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
     },
     
     // If feature is chosen, we skip this step
@@ -98,7 +100,7 @@ Ext.define("attribute-allocation-by-project", {
         if ( this.getArtifactType() == this.getLowestLevelPITypePath() ) {
             return initiatives;
         }
-        this.setLoading("Fetching " + this.getLowestLevelPITypePath() + "...");
+        this.setLoading("Fetching " + this.getLowestLevelPITypePath() + "s...");
         
         var filter_array = Ext.Array.map(initiatives, function(initiative){
             return {property:'Parent.ObjectID',value:initiative.get('ObjectID')};
@@ -132,13 +134,13 @@ Ext.define("attribute-allocation-by-project", {
             sumField = this.getSumField();
         
         var hash = {},
-            categoryKeys = [],
+            groupingKeys = [],
             projectKeys = [];
     
         for (var i=0; i<records.length; i++){
             var rec = records[i].getData();
     
-            var category = TSCalculator.getCategoryFromRecordData(rec,field);
+            var group_name = TSCalculator.getCategoryFromRecordData(rec,field);
             
             var project = this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
             if ( this.getArtifactType() != this.getLowestLevelPITypePath() ) {
@@ -149,38 +151,39 @@ Ext.define("attribute-allocation-by-project", {
             }
             
             if (project){
-                categoryKeys = Ext.Array.merge(categoryKeys, [category]);
-                projectKeys  = Ext.Array.merge(projectKeys, [project]);
+                var project_name = this.projectUtility.getProjectName(project);
+                groupingKeys = Ext.Array.merge(groupingKeys, [group_name]);
+                projectKeys = Ext.Array.merge(projectKeys, [project_name]);
                 
-                if (!hash[category]){
-                    hash[category] = {};
+                if (!hash[group_name]){
+                    hash[group_name] = {};
                 }
-                if (!hash[category][project]){
-                    hash[category][project] = 0;
+                if (!hash[group_name][project_name]){
+                    hash[group_name][project_name] = 0;
                 }
     
                 if (sumField){
-                    hash[category][project] += TSCalculator.getValueFromSumField(rec,sumField);
+                    hash[group_name][project_name] += TSCalculator.getValueFromSumField(rec,sumField);
                 } else {
-                    hash[category][project]++;
+                    hash[group_name][project_name]++;
                 }
             }
         }
     
-        var categories = Ext.Array.map(projectKeys, function(p){ return this.projectUtility.getProjectName(p); }, this),
+        var categories = projectKeys.sort(),
             series = [];
-    
-        Ext.Object.each(hash, function(category, projectObj){
+                
+        Ext.Array.each(TSCalculator.sortWithNone(groupingKeys), function(group_name) {
             var data = [];
-            Ext.Array.each(projectKeys, function(p){
-                data.push( hash[category][p] || 0 );
+            Ext.Array.each(categories, function(project_name){
+                data.push( hash[group_name][project_name] || 0 );
             });
             var series_data = {
-                name: category,
+                name: group_name,
                 data: data
             };
             
-            if ( category == 'None' ) {
+            if ( group_name == 'None' ) {
                 series_data.color = '#D3D3D3';
             }
             
@@ -200,6 +203,7 @@ Ext.define("attribute-allocation-by-project", {
             this.showAppMessage("No records found for the selected criteria.");
             return;
         }
+        this.setLoading('Preparing Data....');
 
         var chartData = this.prepareChartData(records);
 
