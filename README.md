@@ -42,8 +42,6 @@ If the project scope is "Online Store, Inc" and app is configured for Project Le
 
   
 ###Notes
-
-If an artifact has a null attribute value, then it will inherit the value from it's parent. 
   
 Artifacts with Null values are included in the chart.  To calculate datasets for only artifacts with a populated attribute field, add a query to the app settings.  For example, if the attribute
 field is "Investment Category" and we want to exclude artifacts with an investment category of "none" (the equivalent to null for InvestmentCategory field), then add the following query:
@@ -64,7 +62,7 @@ Note that the Parent is added to the query as an OR so that we don't exclude fea
   Type.
   
 ######Artifact Field
-  The field on the artifact type object that represents the attribute.  The values for this field will be the series.  
+  The field on the artifact type object that represents the attribute.  The values for this field will be the series.  When initiative is chosen as the artifact type, the value in this field will come from the feature unless the feature has an empty value.  In that case, the value will be determined from the same field on the parent (if any).  When feature is chosen as the artifact type, the value will only come from the features.
   
 ######Sum Field
   The field to sum to calculate the percentage.  To  total the feature count, select "Feature Count".  Other options are Preliminary and Refined Estimates, and Leaf Story count/Estimate fields.  
@@ -84,9 +82,6 @@ Note that the Parent is added to the query as an OR so that we don't exclude fea
 ######Query
   Query to use to limit the dataset for the artifacts to be evaluated.  
   
-### Notes
- * If an artifact exists in a project above the configured project level, then that artifact will NOT be included in the dataset or the chart.  
- * Only 4 colors are configured.  If there are more than 4 values, additional colors may need to be added in the chartColors configuration at the top of the app.js file.      
 
 ## Development Notes
 
@@ -95,7 +90,7 @@ Be sure to update these if you're messing with the functions in calculator.js.  
 grunt watch will run these tests if the files change).
 
 * Since the goal for initiatives is to get the information from features but bucket based on the initiative bucket,
-when initiative is called, we have to do two calls to the server to get data.  
+when initiative is called, we have to do two calls to the server to get data.  This uses the parallel throttle.
 
 ### First Load
 
