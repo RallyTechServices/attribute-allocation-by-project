@@ -65,9 +65,9 @@ Ext.define("attribute-allocation-by-project", {
         
         Deft.Chain.pipeline([
             this._fetchParentArtifacts,
-            this._fetchChildArtifacts
+            this._fetchChildArtifacts,
+            this.buildChart
         ],this).then({
-            success: this.buildChart,
             failure: function(msg) {
                 var msg = Ext.String.format("Error fetching {0} artifacts: {1}",this.getArtifactType(),msg);
                 this.showErrorNotification(msg);
@@ -78,7 +78,7 @@ Ext.define("attribute-allocation-by-project", {
     
     // This fetches the configured artifact type
     _fetchParentArtifacts: function() {
-        this.setLoading("Fetching " + this.getArtifactType() + "...");
+        this.setLoading("Fetching " + this.getArtifactType() + "s...");
 
         var config = {
             model   : this.getArtifactType(),
@@ -89,7 +89,9 @@ Ext.define("attribute-allocation-by-project", {
             compact : false
         };
         
-        return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
+        return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecordsParallel(config);
+
+        //return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
     },
     
     // If feature is chosen, we skip this step
@@ -98,7 +100,7 @@ Ext.define("attribute-allocation-by-project", {
         if ( this.getArtifactType() == this.getLowestLevelPITypePath() ) {
             return initiatives;
         }
-        this.setLoading("Fetching " + this.getLowestLevelPITypePath() + "...");
+        this.setLoading("Fetching " + this.getLowestLevelPITypePath() + "s...");
         
         var filter_array = Ext.Array.map(initiatives, function(initiative){
             return {property:'Parent.ObjectID',value:initiative.get('ObjectID')};
@@ -169,7 +171,9 @@ Ext.define("attribute-allocation-by-project", {
     
         var categories = Ext.Array.map(projectKeys, function(p){ return this.projectUtility.getProjectName(p); }, this),
             series = [];
-    
+        
+        categories.sort();
+
         Ext.Object.each(hash, function(category, projectObj){
             var data = [];
             Ext.Array.each(projectKeys, function(p){
@@ -200,6 +204,7 @@ Ext.define("attribute-allocation-by-project", {
             this.showAppMessage("No records found for the selected criteria.");
             return;
         }
+        this.setLoading('Preparing Data....');
 
         var chartData = this.prepareChartData(records);
 

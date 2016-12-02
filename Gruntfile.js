@@ -101,7 +101,7 @@ module.exports = function(grunt) {
                 }
         },
         watch: {
-            files: [config.js_files, config.css_files],
+            files: [config_file_name, config.js_files, config.css_files],
             tasks: ['deploy']
         },
         jasmine: {
