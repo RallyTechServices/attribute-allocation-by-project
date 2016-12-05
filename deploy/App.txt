@@ -3,12 +3,12 @@
 <head>
     <title>Attribute Allocation by Project</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Fri Dec 02 2016 08:31:42 GMT-0800 (PST) -->
+    <!--  Build Date: Mon Dec 05 2016 06:32:18 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri Dec 02 2016 08:31:42 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Mon Dec 05 2016 06:32:18 GMT-0800 (PST)";
         var BUILDER = "jmartin";
-        var CHECKSUM = 24731434902;
+        var CHECKSUM = 24859065961;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -259,8 +259,6 @@ Ext.define('PortfolioItemCostTracking.promise.ParallelThrottle',{
             if (maxParallelCalls <= 0 || fns.length < maxParallelCalls){
                 return Deft.promise.Chain.parallel(fns, scope);
             }
-
-            console.log('multiple');
 
             var parallelFns = [],
                 fnChunks = [],
@@ -677,7 +675,9 @@ Ext.define("attribute-allocation-by-project", {
         for (var i=0; i<records.length; i++){
             var rec = records[i].getData();
     
-            var group_name = TSCalculator.getCategoryFromRecordData(rec,field);
+            var use_parent = (this.getArtifactType() != this.getLowestLevelPITypePath());
+            
+            var group_name = TSCalculator.getCategoryFromRecordData(rec,field,use_parent);
             
             var project = this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
             if ( this.getArtifactType() != this.getLowestLevelPITypePath() ) {
