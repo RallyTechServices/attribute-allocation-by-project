@@ -59,7 +59,7 @@ Ext.define('CA.agile.technicalservices.util.WsapiUtils',{
     loadWsapiRecordsParallel: function(store_config){
         var deferred = Ext.create('Deft.Deferred'),
             promises = [],
-            thread_count = 12,
+            thread_count = 9,
             me = this;
 
         var config = Ext.Object.merge({
