@@ -140,7 +140,9 @@ Ext.define("attribute-allocation-by-project", {
         for (var i=0; i<records.length; i++){
             var rec = records[i].getData();
     
-            var group_name = TSCalculator.getCategoryFromRecordData(rec,field);
+            var use_parent = (this.getArtifactType() != this.getLowestLevelPITypePath());
+            
+            var group_name = TSCalculator.getCategoryFromRecordData(rec,field,use_parent);
             
             var project = this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
             if ( this.getArtifactType() != this.getLowestLevelPITypePath() ) {

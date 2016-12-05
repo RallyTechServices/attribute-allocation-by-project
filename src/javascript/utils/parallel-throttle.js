@@ -8,8 +8,6 @@ Ext.define('PortfolioItemCostTracking.promise.ParallelThrottle',{
                 return Deft.promise.Chain.parallel(fns, scope);
             }
 
-            console.log('multiple');
-
             var parallelFns = [],
                 fnChunks = [],
                 idx = -1;
