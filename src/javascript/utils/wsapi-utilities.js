@@ -87,7 +87,7 @@ Ext.define('CA.agile.technicalservices.util.WsapiUtils',{
                         deferred.resolve(_.flatten(results));
                     },
                     failure: function(msg){
-                        deferred.reject(msg);
+                        deferred.reject(Ext.String.format("Parallel Load Problem:", msg));
                     }
                 });
             },
@@ -112,7 +112,7 @@ Ext.define('CA.agile.technicalservices.util.WsapiUtils',{
                 if (success){
                     deferred.resolve(operation.resultSet.totalRecords);
                 } else {
-                    deferred.reject(Ext.String.format("Error getting {0} count: {2}", config.model, operation.error.errors.join(',')));
+                    deferred.reject(Ext.String.format("Count Problem: {1}", operation.error.errors.join(',')));
                 }
             }
         });

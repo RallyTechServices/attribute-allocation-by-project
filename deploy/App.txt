@@ -3,12 +3,12 @@
 <head>
     <title>Attribute Allocation by Project</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Mon Dec 05 2016 06:32:18 GMT-0800 (PST) -->
+    <!--  Build Date: Mon Dec 05 2016 06:39:30 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Dec 05 2016 06:32:18 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Mon Dec 05 2016 06:39:30 GMT-0800 (PST)";
         var BUILDER = "jmartin";
-        var CHECKSUM = 24859065961;
+        var CHECKSUM = 24901705953;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -483,7 +483,7 @@ Ext.define('CA.agile.technicalservices.util.WsapiUtils',{
                         deferred.resolve(_.flatten(results));
                     },
                     failure: function(msg){
-                        deferred.reject(msg);
+                        deferred.reject(Ext.String.format("Parallel Load Problem:", msg));
                     }
                 });
             },
@@ -508,7 +508,7 @@ Ext.define('CA.agile.technicalservices.util.WsapiUtils',{
                 if (success){
                     deferred.resolve(operation.resultSet.totalRecords);
                 } else {
-                    deferred.reject(Ext.String.format("Error getting {0} count: {2}", config.model, operation.error.errors.join(',')));
+                    deferred.reject(Ext.String.format("Count Problem: {1}", operation.error.errors.join(',')));
                 }
             }
         });
