@@ -85,12 +85,14 @@ Note that the Parent is added to the query as an OR so that we don't exclude fea
 
 ## Development Notes
 
-* There ARE two spec files for fast tests about extracting information from the records (grouping category and value). 
+* There ARE spec files for fast tests about extracting information from the records (grouping category and value). 
 Be sure to update these if you're messing with the functions in calculator.js.  Run with grunt test-fast.  (Also
 grunt watch will run these tests if the files change).
 
 * Since the goal for initiatives is to get the information from features but bucket based on the initiative bucket,
 when initiative is called, we have to do two calls to the server to get data.  This uses the parallel throttle.
+
+* When in column mode, the chart will try to fill the size of the app.  
 
 ### First Load
 

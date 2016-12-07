@@ -3,12 +3,12 @@
 <head>
     <title>Attribute Allocation by Project</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Tue Dec 06 2016 15:32:11 GMT-0800 (PST) -->
+    <!--  Build Date: Wed Dec 07 2016 08:12:54 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Dec 06 2016 15:32:11 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Wed Dec 07 2016 08:12:54 GMT-0800 (PST)";
         var BUILDER = "jmartin";
-        var CHECKSUM = 34974636280;
+        var CHECKSUM = 35400233564;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -839,6 +839,8 @@ Ext.define("attribute-allocation-by-project", {
         var classifications = {};
         Ext.Array.each(project_oids, function(project_oid,idx){
             var classification = this.projectUtility.getClassification(project_oid);
+            if ( Ext.isEmpty(classification) ) { return; }
+            
             if ( Ext.isEmpty(classifications[classification]) ) {
                 classifications[classification] = [];
             }
@@ -893,12 +895,15 @@ Ext.define("attribute-allocation-by-project", {
 
         var chart_data = this.prepareChartData(records);
         var plot_bands = chart_data.plotBands || [];
-        
-        this.logger.log("Chart Data: ", chart_data);
-        
+                
         var height = Math.max(400,chart_data.categories.length * 30);
-        if ( this.getChartType() == "Column" ) {
-            height = Math.max(400,this.getHeight());
+        var yMax   = 100;
+        
+        if ( this.getChartType().toLowerCase() == "column" ) {
+            height = Math.max(300,this.getHeight()-50);
+            if ( this.shouldShowClassification() ) {
+                yMax   = 120;
+            }
         }
         
         this.add({
@@ -934,7 +939,7 @@ Ext.define("attribute-allocation-by-project", {
                 },
                 yAxis: {
                     min: 0,
-                    max: 120,
+                    max: yMax,
                     labels: {
                         format: "{value}%",
                         style: {
@@ -1016,6 +1021,7 @@ Ext.define("attribute-allocation-by-project", {
     },
     
     shouldShowClassification: function() {
+        this.logger.log('shouldShowClassification', this.getSetting('showProjectClassification'));
         return this.getSetting('showProjectClassification');
     },
     getSumField: function(){

@@ -221,6 +221,8 @@ Ext.define("attribute-allocation-by-project", {
         var classifications = {};
         Ext.Array.each(project_oids, function(project_oid,idx){
             var classification = this.projectUtility.getClassification(project_oid);
+            if ( Ext.isEmpty(classification) ) { return; }
+            
             if ( Ext.isEmpty(classifications[classification]) ) {
                 classifications[classification] = [];
             }
@@ -275,12 +277,15 @@ Ext.define("attribute-allocation-by-project", {
 
         var chart_data = this.prepareChartData(records);
         var plot_bands = chart_data.plotBands || [];
-        
-        this.logger.log("Chart Data: ", chart_data);
-        
+                
         var height = Math.max(400,chart_data.categories.length * 30);
-        if ( this.getChartType() == "Column" ) {
-            height = Math.max(400,this.getHeight());
+        var yMax   = 100;
+        
+        if ( this.getChartType().toLowerCase() == "column" ) {
+            height = Math.max(300,this.getHeight()-50);
+            if ( this.shouldShowClassification() ) {
+                yMax   = 120;
+            }
         }
         
         this.add({
@@ -316,7 +321,7 @@ Ext.define("attribute-allocation-by-project", {
                 },
                 yAxis: {
                     min: 0,
-                    max: 120,
+                    max: yMax,
                     labels: {
                         format: "{value}%",
                         style: {
@@ -398,6 +403,7 @@ Ext.define("attribute-allocation-by-project", {
     },
     
     shouldShowClassification: function() {
+        this.logger.log('shouldShowClassification', this.getSetting('showProjectClassification'));
         return this.getSetting('showProjectClassification');
     },
     getSumField: function(){
