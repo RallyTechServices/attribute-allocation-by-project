@@ -1,7 +1,6 @@
 Ext.define('CA.agile.technicalservices.util.WsapiUtils',{
     singleton: true,
     
-    
     // given a store config, loads the records while returning a promise
     loadWsapiRecords: function(config) {
         var deferred = Ext.create('Deft.Deferred');
@@ -128,12 +127,37 @@ Ext.define('CA.agile.technicalservices.util.WsapiUtils',{
                 if (operation.wasSuccessful()){
                      deferred.resolve(records);
                 } else {
-                    deferred.reject('loadStorePage error: ' + operation.error.errors.join(','));
+                    console.error('Operation:', operation);
+                    var msg = operation.error && operation.error.errors.join(',');
+                    if ( Ext.isEmpty(msg) ) {
+                        deferred.reject('Network issue while loading store page');
+                    } else {
+                        deferred.reject(msg + " (lsp)");
+                    }
                 }
             }
         });
 
         return deferred;
+    },
+    
+    fetchAllowedValues: function(model_name, field_name) {
+        var deferred = Ext.create('Deft.Deferred');
+        console.log(model_name, field_name);
+        
+        Rally.data.ModelFactory.getModel({
+            type: model_name,
+            success: function(model) {
+                model.getField(field_name).getAllowedValueStore().load({
+                    callback: function(allowed_values, operation, success) {
+                        deferred.resolve(Ext.Array.map(allowed_values, function(allowed_value){
+                            return allowed_value.get('StringValue');
+                        }));
+                    }
+                });
+            }
+        });
+        return deferred.promise;
     }
     
 });

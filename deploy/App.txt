@@ -3,12 +3,12 @@
 <head>
     <title>Attribute Allocation by Project</title>
     <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Mon Dec 05 2016 06:46:42 GMT-0800 (PST) -->
+    <!--  Build Date: Tue Dec 06 2016 15:32:11 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Dec 05 2016 06:46:42 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Tue Dec 06 2016 15:32:11 GMT-0800 (PST)";
         var BUILDER = "jmartin";
-        var CHECKSUM = 24900017367;
+        var CHECKSUM = 34974636280;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -203,6 +203,9 @@ Ext.define('Rally.technicalservices.Logger',{
 
 });
 
+//
+// This class is tested.  Check the 'fast' automated tests before adding or modifying behavior!
+//
 Ext.define('TSCalculator',{
     singleton: true,
 
@@ -243,8 +246,36 @@ Ext.define('TSCalculator',{
             if ( compare_a_value == "none" ) { compare_a_value = ' '; }
             if ( compare_b_value == "none" ) { compare_b_value = ' '; }
             
-            if ( compare_a_value < compare_b_value ) { return -1; }
-            if ( compare_a_value > compare_b_value ) { return 1;  }
+            if ( ''+compare_a_value < ''+compare_b_value ) { return -1; }
+            if ( ''+compare_a_value > ''+compare_b_value ) { return 1;  }
+            return 0;
+        });
+    },
+    
+    sortWithProjectUtility: function(oid_array,project_utility,defined_order) {
+        var new_array = Ext.clone(oid_array);
+        
+        return new_array.sort(function(a,b){
+            var diff = 0;
+            if ( project_utility.classificationField ) {
+                var compare_a_value = Ext.isNumber(a) ? project_utility.getClassification(a) : a,
+                    compare_b_value = Ext.isNumber(b) ? project_utility.getClassification(b) : b;
+                if ( !Ext.isEmpty(defined_order) ) { 
+                    compare_a_value = Ext.Array.indexOf(defined_order, compare_a_value),
+                    compare_b_value = Ext.Array.indexOf(defined_order, compare_b_value);
+                    
+                }
+                if ( compare_a_value < compare_b_value ) { diff = -1; }
+                if ( compare_a_value > compare_b_value ) { diff = 1;  }
+                if ( diff !== 0 ) { return diff; }
+            }
+            
+            // either the same classification or classification wasn't set
+            var compare_a_name = Ext.isNumber(a) ? project_utility.getProjectName(a) : a,
+                compare_b_name = Ext.isNumber(b) ? project_utility.getProjectName(b) : b;
+                
+            if ( compare_a_name < compare_b_name ) { return -1; }
+            if ( compare_a_name > compare_b_name ) { return 1;  }
             return 0;
         });
     }
@@ -290,24 +321,30 @@ Ext.define('PortfolioItemCostTracking.promise.ParallelThrottle',{
 Ext.define('CA.technicalservices.utils.ProjectUtilities',{
 
     fetch: ['ObjectID','Name','Parent'],
+    config: {
+        classificationField: null
+    },
+    
     mixins: {
         observable: 'Ext.util.Observable'
     },
     constructor: function(config){
         this.mixins.observable.constructor.call(this, config);
 
-        var fetch = ['ObjectID','Name','Parent']
-        if (config.fetch){
-            fetch = Ext.Array.merge(fetch, config && config.fetch || []);
-        }
-        this.currentProject = config.currentProject;
+//        var fetch = ['ObjectID','Name','Parent']
+//        if (config.fetch){
+//            fetch = Ext.Array.merge(fetch, config && config.fetch || []);
+//        }
 
+        this.mergeConfig(config);
+        
         Ext.create('Rally.data.wsapi.Store',{
             model: 'Project',
-            fetch: fetch,
+            fetch: this.getFetch(),
             limit: Infinity,
             context: {project: null},
-            compact: false
+            compact: false,
+            pageSize: 2000
         }).load({
             callback: function(records, operation){
                 if (operation.wasSuccessful()){
@@ -319,6 +356,15 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
             scope: this
         });
     },
+    
+    getFetch: function() {
+        var fetch = this.fetch;
+        if ( this.classificationField ) {
+            fetch.push(this.classificationField);
+        }
+        return fetch;
+    },
+    
     _buildProjectParentHash: function(records){
 
         var projectHash = {};
@@ -386,6 +432,19 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
         }
         return null;
     },
+    
+    getClassification: function(projectID){
+        if ( Ext.isEmpty(this.classificationField) ) {
+            return null;
+        }
+        var project = this.getProjectFromOID(projectID);
+        return project[this.classificationField];
+    },
+    
+    getProjectFromOID: function(projectID){
+        return this.projectHash[projectID];
+    },
+    
     getProjectName: function(projectID){
         return this.projectHash[projectID] &&  this.projectHash[projectID].Name || "Unknown";
     },
@@ -396,7 +455,6 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
 });
 Ext.define('CA.agile.technicalservices.util.WsapiUtils',{
     singleton: true,
-    
     
     // given a store config, loads the records while returning a promise
     loadWsapiRecords: function(config) {
@@ -524,15 +582,47 @@ Ext.define('CA.agile.technicalservices.util.WsapiUtils',{
                 if (operation.wasSuccessful()){
                      deferred.resolve(records);
                 } else {
-                    deferred.reject('loadStorePage error: ' + operation.error.errors.join(','));
+                    console.error('Operation:', operation);
+                    var msg = operation.error && operation.error.errors.join(',');
+                    if ( Ext.isEmpty(msg) ) {
+                        deferred.reject('Network issue while loading store page');
+                    } else {
+                        deferred.reject(msg + " (lsp)");
+                    }
                 }
             }
         });
 
         return deferred;
+    },
+    
+    fetchAllowedValues: function(model_name, field_name) {
+        var deferred = Ext.create('Deft.Deferred');
+        console.log(model_name, field_name);
+        
+        Rally.data.ModelFactory.getModel({
+            type: model_name,
+            success: function(model) {
+                model.getField(field_name).getAllowedValueStore().load({
+                    callback: function(allowed_values, operation, success) {
+                        deferred.resolve(Ext.Array.map(allowed_values, function(allowed_value){
+                            return allowed_value.get('StringValue');
+                        }));
+                    }
+                });
+            }
+        });
+        return deferred.promise;
     }
     
 });
+Ext.override(Rally.data.lookback.SnapshotRestProxy, {
+    timeout: 300000
+});
+Ext.override(Rally.data.wsapi.Proxy, {
+    timeout: 300000
+});
+
 Ext.define("attribute-allocation-by-project", {
     extend: 'Rally.app.App',
     componentCls: 'app',
@@ -567,9 +657,14 @@ Ext.define("attribute-allocation-by-project", {
            return;
         }
         
-        CA.agile.technicalservices.util.WsapiUtils.getPortfolioItemTypes().then({ 
-            success: function(pis) {
-                this.PortfolioItemTypes = pis;
+        Deft.Chain.sequence([
+            CA.agile.technicalservices.util.WsapiUtils.getPortfolioItemTypes,
+            this.fetchAllowedClassifications
+        ],this).then({ 
+            success: function(results) {
+                this.PortfolioItemTypes = results[0];
+                this.AllowedValues = results[1];
+                
                 this._initializeApp();
             },
             scope: this
@@ -584,7 +679,7 @@ Ext.define("attribute-allocation-by-project", {
         this.removeAll();
         this.logger.log('_initializeApp');
         this.projectUtility = Ext.create('CA.technicalservices.utils.ProjectUtilities',{
-            fetch: [this.getProjectClassificationField()],
+            classificationField: this.shouldShowClassification() ? this.getProjectClassificationField() : null,
             currentProject: this.getContext().getProject().ObjectID,
             listeners: {
                 onerror: this.showErrorNotification,
@@ -625,8 +720,6 @@ Ext.define("attribute-allocation-by-project", {
         };
         
         return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecordsParallel(config);
-
-        //return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
     },
     
     // If feature is chosen, we skip this step
@@ -659,7 +752,6 @@ Ext.define("attribute-allocation-by-project", {
         };
         
         return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecordsParallel(config);
-        //return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
     },
     
     prepareChartData: function(records) {
@@ -679,41 +771,44 @@ Ext.define("attribute-allocation-by-project", {
             
             var group_name = TSCalculator.getCategoryFromRecordData(rec,field,use_parent);
             
-            var project = this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
+            var project_oid = this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
             if ( this.getArtifactType() != this.getLowestLevelPITypePath() ) {
                 if ( !rec.Parent ) {
                     continue;
                 }
-                project = this.projectUtility.getProjectAncestor(rec.Parent.Project.ObjectID, this.getProjectLevel());
+                project_oid = this.projectUtility.getProjectAncestor(rec.Parent.Project.ObjectID, this.getProjectLevel());
             }
             
-            if (project){
-                var project_name = this.projectUtility.getProjectName(project);
+            if (project_oid){
                 groupingKeys = Ext.Array.merge(groupingKeys, [group_name]);
-                projectKeys = Ext.Array.merge(projectKeys, [project_name]);
+                projectKeys = Ext.Array.merge(projectKeys, [project_oid]);
                 
                 if (!hash[group_name]){
                     hash[group_name] = {};
                 }
-                if (!hash[group_name][project_name]){
-                    hash[group_name][project_name] = 0;
+                if (!hash[group_name][project_oid]){
+                    hash[group_name][project_oid] = 0;
                 }
     
                 if (sumField){
-                    hash[group_name][project_name] += TSCalculator.getValueFromSumField(rec,sumField);
+                    hash[group_name][project_oid] += TSCalculator.getValueFromSumField(rec,sumField);
                 } else {
-                    hash[group_name][project_name]++;
+                    hash[group_name][project_oid]++;
                 }
             }
         }
     
-        var categories = projectKeys.sort(),
-            series = [];
-                
+        var series = [],
+            project_oids_in_order = TSCalculator.sortWithProjectUtility(projectKeys,this.projectUtility,this.AllowedValues);
+
+        var categories = Ext.Array.map(project_oids_in_order,function(oid){
+            return this.projectUtility.getProjectName(oid);
+        },this);
+        
         Ext.Array.each(TSCalculator.sortWithNone(groupingKeys), function(group_name) {
             var data = [];
-            Ext.Array.each(categories, function(project_name){
-                data.push( hash[group_name][project_name] || 0 );
+            Ext.Array.each(project_oids_in_order, function(project_oid){
+                data.push( hash[group_name][project_oid] || 0 );
             });
             var series_data = {
                 name: group_name,
@@ -721,7 +816,7 @@ Ext.define("attribute-allocation-by-project", {
             };
             
             if ( group_name == 'None' ) {
-                series_data.color = '#D3D3D3';
+                series_data.color = '#a3a3a3';
             }
             
             series.push(series_data);
@@ -729,8 +824,62 @@ Ext.define("attribute-allocation-by-project", {
         
         return {
             series: series,
-            categories: categories
+            categories: categories,
+            plotBands: this._getPlotBands(project_oids_in_order)
         };
+    },
+    
+    _getPlotBands: function(project_oids) {
+        // assuming project_oids are already in category order
+        if ( this.getSetting('chartType') == 'bar' ) { return; }
+        
+        var plot_bands = [];
+        var align = ( this.getSetting('chartType') == 'column' ) ? 'center' : 'right';
+        
+        var classifications = {};
+        Ext.Array.each(project_oids, function(project_oid,idx){
+            var classification = this.projectUtility.getClassification(project_oid);
+            if ( Ext.isEmpty(classifications[classification]) ) {
+                classifications[classification] = [];
+            }
+            classifications[classification].push(idx);
+        },this);
+        
+        var last_color = null,
+            last_offset = null;
+        
+        Ext.Object.each(classifications, function(classification,indices){
+            if ( Ext.isEmpty(classification) ) {
+                return;
+            }
+            
+            var color = '#ccc',
+                offset = 20;
+            
+            if ( last_color == '#ccc' ) { color = '#eee'; }
+            if ( last_offset === 20 ) { offset = 40; }
+            
+            var from = Ext.Array.min(indices) - 0.5,
+                to   = Ext.Array.max(indices) + 0.5;
+            plot_bands.push({
+                color: color,
+                from: from,
+                to: to,
+                label: {
+                    text: classification,
+                    align: align,
+                    y: offset,
+                    useHTML: true // so it sits on top of all the plot bands
+                },
+                
+//                borderColor: '#fff',
+//                borderWidth: 2
+            });
+            last_color = color;
+            last_offset = offset;
+        });
+        
+        return plot_bands;
     },
     
     buildChart: function(records){
@@ -742,9 +891,12 @@ Ext.define("attribute-allocation-by-project", {
         }
         this.setLoading('Preparing Data....');
 
-        var chartData = this.prepareChartData(records);
-
-        var height = Math.max(400,chartData.categories.length * 30);
+        var chart_data = this.prepareChartData(records);
+        var plot_bands = chart_data.plotBands || [];
+        
+        this.logger.log("Chart Data: ", chart_data);
+        
+        var height = Math.max(400,chart_data.categories.length * 30);
         if ( this.getChartType() == "Column" ) {
             height = Math.max(400,this.getHeight());
         }
@@ -753,7 +905,7 @@ Ext.define("attribute-allocation-by-project", {
             xtype: 'rallychart',
             height: height,
             chartColors: this.chartColors,
-            chartData: chartData,
+            chartData: chart_data,
             chartConfig: {
                 chart: {
                     type: this.getChartType()
@@ -768,7 +920,9 @@ Ext.define("attribute-allocation-by-project", {
                     }
                 },
                 xAxis: {
-                    categories: chartData.categories,
+                    categories: chart_data.categories,
+                    plotBands: plot_bands,
+                    
                     labels: {
                         style: {
                             color: '#444',
@@ -780,6 +934,7 @@ Ext.define("attribute-allocation-by-project", {
                 },
                 yAxis: {
                     min: 0,
+                    max: 120,
                     labels: {
                         format: "{value}%",
                         style: {
@@ -851,6 +1006,17 @@ Ext.define("attribute-allocation-by-project", {
     },
     getLowestLevelPITypePath: function() {
         return this.PortfolioItemTypes[0].get('TypePath');
+    },
+    fetchAllowedClassifications: function() {
+        var model = 'Project',
+            field = this.getProjectClassificationField();
+        
+        if ( !this.shouldShowClassification() ) { return null; }
+        return CA.agile.technicalservices.util.WsapiUtils.fetchAllowedValues(model,field);
+    },
+    
+    shouldShowClassification: function() {
+        return this.getSetting('showProjectClassification');
     },
     getSumField: function(){
         if (this.getSetting('sumField') && this.getSetting('sumField') === "PreliminaryEstimate"){
@@ -1003,6 +1169,25 @@ Ext.define("attribute-allocation-by-project", {
                 change: function(chk, newValue) {
                     this.setDisabled(newValue !== true);
                 }
+            },
+            _isNotHidden: function(field) {
+                var blackList = ['Subscription','Workspace','Parent',
+                    'RevisionHistory','PortfolioItemType'];  
+                
+                if (Ext.Array.contains(blackList, field.name)) { return false; }
+                
+                if ( field.hidden ) { return false; }
+                var defn = field.attributeDefinition;
+                if ( !field.attributeDefinition) { return false; }
+                
+                if ( defn.AttributeType == 'STRING' && defn.Constrained ) {
+                    return true;
+                }       
+                if (defn.AttributeType == "OBJECT" ) {
+                    return true;
+                }
+                
+                return false;
             }
         },{
             xtype: 'radiogroup',
@@ -1103,6 +1288,7 @@ Ext.define("attribute-allocation-by-project", {
     margin-right: 5px;
     cursor: pointer;
 }
+
     </style>
 
 </head>
