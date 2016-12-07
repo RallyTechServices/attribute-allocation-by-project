@@ -68,10 +68,10 @@ Note that the Parent is added to the query as an OR so that we don't exclude fea
   The field to sum to calculate the percentage.  To  total the feature count, select "Feature Count".  Other options are Preliminary and Refined Estimates, and Leaf Story count/Estimate fields.  
   
 ######Show Project Classification
-  Show the rendered project classification on the chart.  Project classification is a custom field on the Project Object. 
+  Show the rendered project classification on the chart.  Project classification is a custom field on the Project Object. When selected, the value in the Project Classification Field will be used to identify groups of programs, which will be shown on the app by plot bands.
   
-######Project Classification field
-  The field to determine a project's classification 
+######Project Classification Field
+  The field to determine a project's classification.  The order of values in this field will determine the order of the groupings and category sort.  (That is, category is sorted first by this group in the order defined by the drop-down and then by name).
   
 ######Chart Type
   The chart can be configured as a Bar chart or a column chart.  A bar chart is recommended if there are more than 8 projects.
@@ -85,12 +85,14 @@ Note that the Parent is added to the query as an OR so that we don't exclude fea
 
 ## Development Notes
 
-* There ARE two spec files for fast tests about extracting information from the records (grouping category and value). 
+* There ARE spec files for fast tests about extracting information from the records (grouping category and value). 
 Be sure to update these if you're messing with the functions in calculator.js.  Run with grunt test-fast.  (Also
 grunt watch will run these tests if the files change).
 
 * Since the goal for initiatives is to get the information from features but bucket based on the initiative bucket,
 when initiative is called, we have to do two calls to the server to get data.  This uses the parallel throttle.
+
+* When in column mode, the chart will try to fill the size of the app.  
 
 ### First Load
 

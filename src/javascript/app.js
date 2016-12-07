@@ -1,3 +1,10 @@
+Ext.override(Rally.data.lookback.SnapshotRestProxy, {
+    timeout: 300000
+});
+Ext.override(Rally.data.wsapi.Proxy, {
+    timeout: 300000
+});
+
 Ext.define("attribute-allocation-by-project", {
     extend: 'Rally.app.App',
     componentCls: 'app',
@@ -32,9 +39,14 @@ Ext.define("attribute-allocation-by-project", {
            return;
         }
         
-        CA.agile.technicalservices.util.WsapiUtils.getPortfolioItemTypes().then({ 
-            success: function(pis) {
-                this.PortfolioItemTypes = pis;
+        Deft.Chain.sequence([
+            CA.agile.technicalservices.util.WsapiUtils.getPortfolioItemTypes,
+            this.fetchAllowedClassifications
+        ],this).then({ 
+            success: function(results) {
+                this.PortfolioItemTypes = results[0];
+                this.AllowedValues = results[1];
+                
                 this._initializeApp();
             },
             scope: this
@@ -49,7 +61,7 @@ Ext.define("attribute-allocation-by-project", {
         this.removeAll();
         this.logger.log('_initializeApp');
         this.projectUtility = Ext.create('CA.technicalservices.utils.ProjectUtilities',{
-            fetch: [this.getProjectClassificationField()],
+            classificationField: this.shouldShowClassification() ? this.getProjectClassificationField() : null,
             currentProject: this.getContext().getProject().ObjectID,
             listeners: {
                 onerror: this.showErrorNotification,
@@ -90,8 +102,6 @@ Ext.define("attribute-allocation-by-project", {
         };
         
         return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecordsParallel(config);
-
-        //return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
     },
     
     // If feature is chosen, we skip this step
@@ -124,7 +134,6 @@ Ext.define("attribute-allocation-by-project", {
         };
         
         return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecordsParallel(config);
-        //return CA.agile.technicalservices.util.WsapiUtils.loadWsapiRecords(config);
     },
     
     prepareChartData: function(records) {
@@ -144,41 +153,44 @@ Ext.define("attribute-allocation-by-project", {
             
             var group_name = TSCalculator.getCategoryFromRecordData(rec,field,use_parent);
             
-            var project = this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
+            var project_oid = this.projectUtility.getProjectAncestor(rec.Project.ObjectID, this.getProjectLevel());
             if ( this.getArtifactType() != this.getLowestLevelPITypePath() ) {
                 if ( !rec.Parent ) {
                     continue;
                 }
-                project = this.projectUtility.getProjectAncestor(rec.Parent.Project.ObjectID, this.getProjectLevel());
+                project_oid = this.projectUtility.getProjectAncestor(rec.Parent.Project.ObjectID, this.getProjectLevel());
             }
             
-            if (project){
-                var project_name = this.projectUtility.getProjectName(project);
+            if (project_oid){
                 groupingKeys = Ext.Array.merge(groupingKeys, [group_name]);
-                projectKeys = Ext.Array.merge(projectKeys, [project_name]);
+                projectKeys = Ext.Array.merge(projectKeys, [project_oid]);
                 
                 if (!hash[group_name]){
                     hash[group_name] = {};
                 }
-                if (!hash[group_name][project_name]){
-                    hash[group_name][project_name] = 0;
+                if (!hash[group_name][project_oid]){
+                    hash[group_name][project_oid] = 0;
                 }
     
                 if (sumField){
-                    hash[group_name][project_name] += TSCalculator.getValueFromSumField(rec,sumField);
+                    hash[group_name][project_oid] += TSCalculator.getValueFromSumField(rec,sumField);
                 } else {
-                    hash[group_name][project_name]++;
+                    hash[group_name][project_oid]++;
                 }
             }
         }
     
-        var categories = projectKeys.sort(),
-            series = [];
-                
+        var series = [],
+            project_oids_in_order = TSCalculator.sortWithProjectUtility(projectKeys,this.projectUtility,this.AllowedValues);
+
+        var categories = Ext.Array.map(project_oids_in_order,function(oid){
+            return this.projectUtility.getProjectName(oid);
+        },this);
+        
         Ext.Array.each(TSCalculator.sortWithNone(groupingKeys), function(group_name) {
             var data = [];
-            Ext.Array.each(categories, function(project_name){
-                data.push( hash[group_name][project_name] || 0 );
+            Ext.Array.each(project_oids_in_order, function(project_oid){
+                data.push( hash[group_name][project_oid] || 0 );
             });
             var series_data = {
                 name: group_name,
@@ -186,7 +198,7 @@ Ext.define("attribute-allocation-by-project", {
             };
             
             if ( group_name == 'None' ) {
-                series_data.color = '#D3D3D3';
+                series_data.color = '#a3a3a3';
             }
             
             series.push(series_data);
@@ -194,8 +206,64 @@ Ext.define("attribute-allocation-by-project", {
         
         return {
             series: series,
-            categories: categories
+            categories: categories,
+            plotBands: this._getPlotBands(project_oids_in_order)
         };
+    },
+    
+    _getPlotBands: function(project_oids) {
+        // assuming project_oids are already in category order
+        if ( this.getSetting('chartType') == 'bar' ) { return; }
+        
+        var plot_bands = [];
+        var align = ( this.getSetting('chartType') == 'column' ) ? 'center' : 'right';
+        
+        var classifications = {};
+        Ext.Array.each(project_oids, function(project_oid,idx){
+            var classification = this.projectUtility.getClassification(project_oid);
+            if ( Ext.isEmpty(classification) ) { return; }
+            
+            if ( Ext.isEmpty(classifications[classification]) ) {
+                classifications[classification] = [];
+            }
+            classifications[classification].push(idx);
+        },this);
+        
+        var last_color = null,
+            last_offset = null;
+        
+        Ext.Object.each(classifications, function(classification,indices){
+            if ( Ext.isEmpty(classification) ) {
+                return;
+            }
+            
+            var color = '#ccc',
+                offset = 20;
+            
+            if ( last_color == '#ccc' ) { color = '#eee'; }
+            if ( last_offset === 20 ) { offset = 40; }
+            
+            var from = Ext.Array.min(indices) - 0.5,
+                to   = Ext.Array.max(indices) + 0.5;
+            plot_bands.push({
+                color: color,
+                from: from,
+                to: to,
+                label: {
+                    text: classification,
+                    align: align,
+                    y: offset,
+                    useHTML: true // so it sits on top of all the plot bands
+                },
+                
+//                borderColor: '#fff',
+//                borderWidth: 2
+            });
+            last_color = color;
+            last_offset = offset;
+        });
+        
+        return plot_bands;
     },
     
     buildChart: function(records){
@@ -207,18 +275,24 @@ Ext.define("attribute-allocation-by-project", {
         }
         this.setLoading('Preparing Data....');
 
-        var chartData = this.prepareChartData(records);
-
-        var height = Math.max(400,chartData.categories.length * 30);
-        if ( this.getChartType() == "Column" ) {
-            height = Math.max(400,this.getHeight());
+        var chart_data = this.prepareChartData(records);
+        var plot_bands = chart_data.plotBands || [];
+                
+        var height = Math.max(400,chart_data.categories.length * 30);
+        var yMax   = 100;
+        
+        if ( this.getChartType().toLowerCase() == "column" ) {
+            height = Math.max(300,this.getHeight()-50);
+            if ( this.shouldShowClassification() ) {
+                yMax   = 120;
+            }
         }
         
         this.add({
             xtype: 'rallychart',
             height: height,
             chartColors: this.chartColors,
-            chartData: chartData,
+            chartData: chart_data,
             chartConfig: {
                 chart: {
                     type: this.getChartType()
@@ -233,7 +307,9 @@ Ext.define("attribute-allocation-by-project", {
                     }
                 },
                 xAxis: {
-                    categories: chartData.categories,
+                    categories: chart_data.categories,
+                    plotBands: plot_bands,
+                    
                     labels: {
                         style: {
                             color: '#444',
@@ -245,6 +321,7 @@ Ext.define("attribute-allocation-by-project", {
                 },
                 yAxis: {
                     min: 0,
+                    max: yMax,
                     labels: {
                         format: "{value}%",
                         style: {
@@ -316,6 +393,18 @@ Ext.define("attribute-allocation-by-project", {
     },
     getLowestLevelPITypePath: function() {
         return this.PortfolioItemTypes[0].get('TypePath');
+    },
+    fetchAllowedClassifications: function() {
+        var model = 'Project',
+            field = this.getProjectClassificationField();
+        
+        if ( !this.shouldShowClassification() ) { return null; }
+        return CA.agile.technicalservices.util.WsapiUtils.fetchAllowedValues(model,field);
+    },
+    
+    shouldShowClassification: function() {
+        this.logger.log('shouldShowClassification', this.getSetting('showProjectClassification'));
+        return this.getSetting('showProjectClassification');
     },
     getSumField: function(){
         if (this.getSetting('sumField') && this.getSetting('sumField') === "PreliminaryEstimate"){
@@ -468,6 +557,25 @@ Ext.define("attribute-allocation-by-project", {
                 change: function(chk, newValue) {
                     this.setDisabled(newValue !== true);
                 }
+            },
+            _isNotHidden: function(field) {
+                var blackList = ['Subscription','Workspace','Parent',
+                    'RevisionHistory','PortfolioItemType'];  
+                
+                if (Ext.Array.contains(blackList, field.name)) { return false; }
+                
+                if ( field.hidden ) { return false; }
+                var defn = field.attributeDefinition;
+                if ( !field.attributeDefinition) { return false; }
+                
+                if ( defn.AttributeType == 'STRING' && defn.Constrained ) {
+                    return true;
+                }       
+                if (defn.AttributeType == "OBJECT" ) {
+                    return true;
+                }
+                
+                return false;
             }
         },{
             xtype: 'radiogroup',

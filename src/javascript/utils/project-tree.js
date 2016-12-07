@@ -1,24 +1,30 @@
 Ext.define('CA.technicalservices.utils.ProjectUtilities',{
 
     fetch: ['ObjectID','Name','Parent'],
+    config: {
+        classificationField: null
+    },
+    
     mixins: {
         observable: 'Ext.util.Observable'
     },
     constructor: function(config){
         this.mixins.observable.constructor.call(this, config);
 
-        var fetch = ['ObjectID','Name','Parent']
-        if (config.fetch){
-            fetch = Ext.Array.merge(fetch, config && config.fetch || []);
-        }
-        this.currentProject = config.currentProject;
+//        var fetch = ['ObjectID','Name','Parent']
+//        if (config.fetch){
+//            fetch = Ext.Array.merge(fetch, config && config.fetch || []);
+//        }
 
+        this.mergeConfig(config);
+        
         Ext.create('Rally.data.wsapi.Store',{
             model: 'Project',
-            fetch: fetch,
+            fetch: this.getFetch(),
             limit: Infinity,
             context: {project: null},
-            compact: false
+            compact: false,
+            pageSize: 2000
         }).load({
             callback: function(records, operation){
                 if (operation.wasSuccessful()){
@@ -30,6 +36,15 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
             scope: this
         });
     },
+    
+    getFetch: function() {
+        var fetch = this.fetch;
+        if ( this.classificationField ) {
+            fetch.push(this.classificationField);
+        }
+        return fetch;
+    },
+    
     _buildProjectParentHash: function(records){
 
         var projectHash = {};
@@ -97,6 +112,19 @@ Ext.define('CA.technicalservices.utils.ProjectUtilities',{
         }
         return null;
     },
+    
+    getClassification: function(projectID){
+        if ( Ext.isEmpty(this.classificationField) ) {
+            return null;
+        }
+        var project = this.getProjectFromOID(projectID);
+        return project[this.classificationField];
+    },
+    
+    getProjectFromOID: function(projectID){
+        return this.projectHash[projectID];
+    },
+    
     getProjectName: function(projectID){
         return this.projectHash[projectID] &&  this.projectHash[projectID].Name || "Unknown";
     },
